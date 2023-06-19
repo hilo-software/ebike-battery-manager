@@ -1,4 +1,4 @@
-# EBike Battery Plug Controller
+# EBike Battery Plug Manager
 
 # Important - Read this first
 *This script requires hardware to work:* 

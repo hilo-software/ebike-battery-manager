@@ -1,6 +1,6 @@
 # EBike Battery Plug Manager
 
-# Important - Read this first
+## **Important - Read this first**
 *This script requires hardware to work:* 
 - One or more TP-Link Smart Plug socket or Smart Strip with energy metering capability (emeter)
     - The KP115 Smart Plug and the HS300 Smart Strip are compatible.

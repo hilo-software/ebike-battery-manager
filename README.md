@@ -7,7 +7,7 @@
     - The KP303 is NOT compatible as it does not have the energy metering capability.
 - The associated Kasa phone app to add the TP-Link devices to the network
 - A WiFi network common to both the plug monitor devices and the computer hosting the script.
-- A linux or MacOS host capable of running **Python 3.9** to host the script.  (Raspberry Pi's work fine)
+- A linux or MacOS host capable of running **Python 3.10** to host the script.  (Raspberry Pi's work fine)
 
 
 **If purchasing the hardware is not acceptable, GO NO FURTHER!**

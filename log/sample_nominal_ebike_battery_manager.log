@@ -1,0 +1,100 @@
+2023-06-21 00:00:01 [INFO] Script logs are in ebike_battery_manager.log
+2023-06-21 00:00:01 [INFO] >>>>> FOUND config_file: /home/kelvin/ebike_battery_manager.config
+2023-06-21 00:00:01 [INFO] >>>>> START <<<<<
+2023-06-21 00:00:01 [INFO]   ---- test_mode: False
+2023-06-21 00:00:01 [INFO]   ---- force_full_charge: False
+2023-06-21 00:00:01 [INFO]   ---- nominal_charge_battery_power_threshold: 90.0
+2023-06-21 00:00:01 [INFO]   ---- full_charge_battery_power_threshold: 5.0
+2023-06-21 00:00:01 [INFO]   ---- storage_charge_battery_power_threshold: 90.0
+2023-06-21 00:00:01 [INFO]   ---- full_charge_repeat_limit: 3
+2023-06-21 00:00:01 [INFO]   ---- max_cycles_in_fine_mode: 20
+2023-06-21 00:00:01 [INFO]   ---- storage_charge_cycle_limit: 1
+2023-06-21 00:00:01 [INFO]   ---- max_hours_to_run: 12
+2023-06-21 00:00:01 [INFO]   ---- logfile: ebike_battery_manager.log
+2023-06-21 00:00:01 [INFO]   ---- config_file: /home/kelvin/ebike_battery_manager.config
+2023-06-21 00:00:01 [INFO]   ---- plugs in storage mode: 
+2023-06-21 00:00:01 [INFO]       ---- plug name: rad_battery_3
+2023-06-21 00:00:06 [INFO] >>>>> init <<<<<
+2023-06-21 00:00:06 [INFO] init: found a SmartStrip: Plug 1, children: 3
+2023-06-21 00:00:06 [INFO] init: found a SmartPlug: deco-upstairs
+2023-06-21 00:00:06 [INFO] init: found a SmartPlug: lectric_no_prefix
+2023-06-21 00:00:08 [INFO] init: found a SmartStrip: TP-LINK_Power Strip_08FD, children: 6
+2023-06-21 00:00:08 [INFO] SmartStrip: plug: battery_spare_1, battery_charge_mode: BatteryChargeMode.NOMINAL
+2023-06-21 00:00:08 [INFO] SmartStrip: plug: lectric_battery_2, battery_charge_mode: BatteryChargeMode.NOMINAL
+2023-06-21 00:00:08 [INFO] SmartStrip: plug: lectric_battery_1, battery_charge_mode: BatteryChargeMode.NOMINAL
+2023-06-21 00:00:08 [INFO] SmartStrip: plug: rad_battery_3, battery_charge_mode: BatteryChargeMode.STORAGE
+2023-06-21 00:00:08 [INFO] SmartStrip: plug: rad_battery_2, battery_charge_mode: BatteryChargeMode.NOMINAL
+2023-06-21 00:00:08 [INFO] SmartStrip: plug: rad_battery_1, battery_charge_mode: BatteryChargeMode.NOMINAL
+2023-06-21 00:00:08 [INFO] SUCCESSFULLY found: 6 smart battery plugs
+2023-06-21 00:00:24 [INFO] >>>>> setup <<<<<
+2023-06-21 00:00:54 [INFO] >>>>> analyze --> probe_interval_secs: 600 <<<<<
+2023-06-21 00:00:55 [INFO] battery_spare_1: 0.0
+2023-06-21 00:00:55 [INFO] battery_spare_1: (threshold_check) has no battery present or it may be fully charged: 0.0
+2023-06-21 00:00:58 [INFO] lectric_battery_2: 0.7
+2023-06-21 00:00:58 [INFO] lectric_battery_2: (threshold_check) has no battery present or it may be fully charged: 0.7
+2023-06-21 00:01:01 [INFO] lectric_battery_1: 0.711
+2023-06-21 00:01:01 [INFO] lectric_battery_1: (threshold_check) has no battery present or it may be fully charged: 0.711
+2023-06-21 00:01:03 [INFO] rad_battery_3: 15.472
+2023-06-21 00:01:03 [INFO] rad_battery_3: (threshold_check) has no battery present or it may be fully charged: 15.472
+2023-06-21 00:01:06 [INFO] rad_battery_2: 84.032
+2023-06-21 00:01:06 [INFO] rad_battery_2: (threshold_check) has no battery present or it may be fully charged: 84.032
+2023-06-21 00:01:09 [INFO] rad_battery_1: 102.598
+2023-06-21 00:01:09 [INFO] rad_battery_1: fine probe interval (300) secs is now ON
+2023-06-21 00:01:09 [INFO] rad_battery_1 is actively_charging
+2023-06-21 00:01:09 [INFO] Switch to probe_interval_secs: 300 from: 600
+2023-06-21 00:06:10 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 00:06:11 [INFO] rad_battery_1: 102.104
+2023-06-21 00:06:11 [INFO] rad_battery_1 is actively_charging
+2023-06-21 00:11:11 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 00:11:12 [INFO] rad_battery_1: 102.036
+2023-06-21 00:11:12 [INFO] rad_battery_1 is actively_charging
+2023-06-21 00:16:12 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 00:16:14 [INFO] rad_battery_1: 102.079
+2023-06-21 00:16:14 [INFO] rad_battery_1 is actively_charging
+2023-06-21 00:21:14 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 00:21:15 [INFO] rad_battery_1: 102.13
+2023-06-21 00:21:15 [INFO] rad_battery_1 is actively_charging
+2023-06-21 00:26:15 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 00:26:16 [INFO] rad_battery_1: 102.164
+2023-06-21 00:26:16 [INFO] rad_battery_1 is actively_charging
+2023-06-21 00:31:17 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 00:31:18 [INFO] rad_battery_1: 102.389
+2023-06-21 00:31:18 [INFO] rad_battery_1 is actively_charging
+2023-06-21 00:36:18 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 00:36:19 [INFO] rad_battery_1: 102.572
+2023-06-21 00:36:19 [INFO] rad_battery_1 is actively_charging
+2023-06-21 00:41:19 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 00:41:21 [INFO] rad_battery_1: 102.734
+2023-06-21 00:41:21 [INFO] rad_battery_1 is actively_charging
+2023-06-21 00:46:21 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 00:46:22 [INFO] rad_battery_1: 103.028
+2023-06-21 00:46:22 [INFO] rad_battery_1 is actively_charging
+2023-06-21 00:51:22 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 00:51:23 [INFO] rad_battery_1: 103.365
+2023-06-21 00:51:23 [INFO] rad_battery_1 is actively_charging
+2023-06-21 00:56:23 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 00:56:25 [INFO] rad_battery_1: 103.706
+2023-06-21 00:56:25 [INFO] rad_battery_1 is actively_charging
+2023-06-21 01:01:25 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 01:01:26 [INFO] rad_battery_1: 104.079
+2023-06-21 01:01:26 [INFO] rad_battery_1 is actively_charging
+2023-06-21 01:06:26 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 01:06:28 [INFO] rad_battery_1: 104.279
+2023-06-21 01:06:28 [INFO] rad_battery_1 is actively_charging
+2023-06-21 01:11:28 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 01:11:29 [INFO] rad_battery_1: 104.648
+2023-06-21 01:11:29 [INFO] rad_battery_1 is actively_charging
+2023-06-21 01:16:29 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 01:16:31 [INFO] rad_battery_1: 103.205
+2023-06-21 01:16:31 [INFO] rad_battery_1 is actively_charging
+2023-06-21 01:21:31 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 01:21:32 [INFO] rad_battery_1: 95.481
+2023-06-21 01:21:32 [INFO] rad_battery_1 is actively_charging
+2023-06-21 01:26:32 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 01:26:33 [INFO] rad_battery_1: 91.442
+2023-06-21 01:26:33 [INFO] rad_battery_1 is actively_charging
+2023-06-21 01:31:33 [INFO] >>>>> analyze --> probe_interval_secs: 300 <<<<<
+2023-06-21 01:31:35 [INFO] rad_battery_1: 85.196
+2023-06-21 01:31:35 [INFO] rad_battery_1: (threshold_check) has no battery present or it may be fully charged: 85.196
+2023-06-21 01:31:36 [INFO] >>>>> !!!! FINI: success: True !!!! <<<<<
+2023-06-21 01:31:36 [INFO] ==> Elapsed time: 1:31:34

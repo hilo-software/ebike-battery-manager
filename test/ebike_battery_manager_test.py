@@ -375,6 +375,19 @@ def test_mock_BatteryStripPlug():
         result = instance.get_power()
         assert result == 4.5
 
+def test_setup_logging_handlers_with_valid_file():
+    logging_handlers = target.setup_logging_handlers('foo')
+    assert len(logging_handlers) == 2
+
+def test_setup_logging_handlers_with_invalid_file():
+    logging_handlers = target.setup_logging_handlers('/usr/foo')
+    assert len(logging_handlers) == 1
+
+def test_email_send_not_called_with_invalid_file():
+    with patch('ebike_battery_manager.send') as mock:
+        target.send_my_mail('any@gmail.com', 'any_app_key', None)
+    assert not mock.called
+
 if __name__ == "__main__":
     # test_foo()
     print('Everything passed')

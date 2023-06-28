@@ -740,6 +740,29 @@ def send(from_addr, to_addr, app_key, msg) -> None:
     except Exception as e:
         logging.error(f'MAIL General ERROR: Unable to send mail: {str(e)}')
 
+def send_my_mail(email: str, app_key: str, log_file: str):
+    if email == None or app_key == None:
+        print('Email args missing not sending')
+    else:
+        try:
+            # Create a text/plain message
+            with open(log_file, 'r') as f:
+                msg = EmailMessage()
+
+                f.seek(0)
+                msg.set_content(f.read())
+
+                # me == the sender's email address
+                # you == the recipient's email address
+                msg['Subject'] = f'battery_plug_controller status'
+                msg['From'] = f'{email}'
+                msg['To'] = f'{email}'
+                send(email, email, app_key, msg)
+        except IOError:
+            print(f'ERROR [send_my_mail] -- Could not read file: {log_file}')
+        except Exception:
+            print(f'ERROR [send_my_mail] -- Could not open file: {log_file}')
+
 async def test_stuff() -> None:
     '''
     Internal test with real devices
@@ -863,25 +886,21 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
     logging.info(f'>>>>> !!!! FINI: success: {str(success)} !!!! <<<<<')
     logging.info(f'==> Elapsed time: {str(elapsed_time).split(".", 2)[0]}')
 
-    if email == None or app_key == None:
-        print('Email args missing not sending')
-    else:
-        try:
-            # Create a text/plain message
-            with open(log_file, 'r') as f:
-                msg = EmailMessage()
+    send_my_mail(email, app_key, log_file)
 
-                f.seek(0)
-                msg.set_content(f.read())
-
-                # me == the sender's email address
-                # you == the recipient's email address
-                msg['Subject'] = f'battery_plug_controller status'
-                msg['From'] = f'{email}'
-                msg['To'] = f'{email}'
-                send(email, email, app_key, msg)
-        except IOError:
-            print(f'ERROR -- Could not read file: {log_file}')
+def setup_logging_handlers(log_file: str) -> list:
+    try:
+        logging_file_handler = logging.FileHandler(filename=log_file, mode='w')
+        logging_handlers=[
+            logging_file_handler,
+            logging.StreamHandler()
+        ]
+    except Exception:
+        print(f'ERROR -- Could not create logging file: {log_file}')
+        logging_handlers=[
+            logging.StreamHandler()
+        ]
+    return logging_handlers
 
 def main() -> None:
     global force_full_charge
@@ -901,14 +920,12 @@ def main() -> None:
     if args.log_file_name != None:
         log_file = args.log_file_name
 
+    logging_handlers = setup_logging_handlers(log_file)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         datefmt='%Y-%m-%d %H:%M:%S',
-        handlers=[
-            logging.FileHandler(filename= log_file, mode= "w"),
-            logging.StreamHandler()
-        ]
+        handlers=logging_handlers
     )
 
     force_full_charge = args.force_full_charge

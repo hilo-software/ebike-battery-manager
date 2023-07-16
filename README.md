@@ -40,7 +40,7 @@ Three cutoff thresholds are supported.
 - A full charge cutoff threshold allows the charger to fully charge the battery enabling balancing of the individual cells.
 - A storage cutoff threshold behaves identically to the nominal cutoff but allows a lower cutoff to hold the battery at a lower charge percentage which is desirable in Li Ion batteries that will be stored unused for an extended period of time.
 ## Disclaimer
-- The owner of the script is not a electrical power engineer.
+- The owner of the script is not an electrical power engineer but is a software engineer working at all levels of software including embedded systems close to the metal. 
 - We only observe the power draw that the chargers are pulling at the smart plug.
 - We assume that power draw is related to the amount of amperage the charger is adding to the battery.
 - We assume that as the battery approaches full charge, the charger draws correspondingly less power establishing a known power drawdown curve that is correlated with the actual charger as it charges the battery, allowing the script to manage the charger(s) by controlling the TP-Link smart plug(s) on/off state. 
@@ -66,7 +66,7 @@ Three cutoff thresholds are supported.
 - The script looks for all TP-Link devices prefixed with "battery_" and treats those as plugs with battery chargers attached.
 - Custom battery names can be assigned via a config file.
 - After you have installed the python-kasa library should create a command line interface "kasa"
-- Use the kasa command without arguments to get all devices and atheir ip addresses
+- Use the kasa command without arguments to get all devices and their ip addresses
     - $ kasa
 - Assigning a name to a plug using the kasa command line alias command
     - $ kasa --host <ip> alias <new_name>

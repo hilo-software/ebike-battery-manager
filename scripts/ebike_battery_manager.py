@@ -7,9 +7,11 @@ from email.message import EmailMessage
 from datetime import datetime, timedelta
 import logging
 import argparse
+from typing import Set
 from os.path import isfile
 from enum import Enum
 import configparser
+from dataclasses import dataclass
 
 # Constants
 CLOSE_MISS_PCT = 0.05
@@ -51,6 +53,17 @@ device_thresholds = {}
 plug_manufacturer_map = {}
 plug_storage_list = []
 plug_full_charge_list = []
+
+class ActivePlug():
+    plug_name: str
+    start_time: datetime
+    stop_time: datetime = None
+
+    def __init__(self, plug_name: str, start_time: datetime):
+        self.plug_name = plug_name
+        self.start_time = start_time
+
+active_plugs: Set[ActivePlug] = set()
 
 class BatteryChargeMode(Enum):
     NOMINAL = 1
@@ -335,6 +348,11 @@ def init_argparse() -> argparse.ArgumentParser:
         help='optional config file, useful to support multiple manufacturers, overrides default values'
     )
     parser.add_argument(
+        '-q', '--quiet_mode',
+        action='store_true',
+        help='reduces logging'
+    )
+    parser.add_argument(
         '--nominal_charge_cutoff', metavar='',
         help='set the default cutoff power override for nominal charge complete'
     )
@@ -480,8 +498,19 @@ def delete_plugs(plugs_to_delete: list) -> None:
     for plug in plugs_to_delete:
         try:
             battery_plug_list.remove(plug)
+            stop_active_plug(plug.name)
         except Exception as e:
             logging.warning(f'WARNING: plug: {plug.name} is not in battery_plug_list, exception: {str(e)}')
+
+def set_active_plug(plug_name: str) -> None:
+    if not any(plug_name == plug.plug_name for plug in active_plugs):
+        active_plugs.add(ActivePlug(plug_name=plug_name, start_time=datetime.now()))
+
+def stop_active_plug(plug_name: str):
+    active_plug: ActivePlug = next((x for x in active_plugs if x.plug_name == plug_name), None)
+    if active_plug:
+        active_plug.stop_time = datetime.now()
+
 
 async def analyze() -> bool:
     '''
@@ -494,6 +523,7 @@ async def analyze() -> bool:
     '''
     global probe_interval_secs
     global battery_plug_list
+    global active_plugs
     logging.info(f'>>>>> analyze --> probe_interval_secs: {str(probe_interval_secs)} <<<<<')
     actively_charging = False
 
@@ -501,6 +531,7 @@ async def analyze() -> bool:
         nonlocal actively_charging
         actively_charging = True
         logging.info(f'{plug.name} is actively_charging')
+        set_active_plug(plug.name)
 
     # track next_probe_interval_secs starting at COARSE_PROBE_INTERVAL_SECS to handle the case
     # where we dropped into a fine_probe_interval_secs for one battery and that battery finished
@@ -814,7 +845,8 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
                            config_file: str,
                            email: str,
                            app_key: str,
-                           test_mode: bool):
+                           test_mode: bool,
+                           quiet_mode: bool):
     '''
     main entry point, expects any global defaults to be settled by this time.
     Currently in script mode, main() will do that work.  When not in script mode,
@@ -857,6 +889,7 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
 
     logging.info('>>>>> START <<<<<')
     logging.info(f'  ---- test_mode: {str(test_mode)}')
+    logging.info(f'  ---- quiet_mode: {str(quiet_mode)}')
     logging.info(f'  ---- force_full_charge: {str(force_full_charge)}')
     logging.info(f'  ---- nominal_charge_battery_power_threshold: {str(nominal_charge_battery_power_threshold)}')
     logging.info(f'  ---- full_charge_battery_power_threshold: {str(full_charge_battery_power_threshold)}')
@@ -867,6 +900,8 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
     logging.info(f'  ---- max_hours_to_run: {str(max_hours_to_run)}')
     logging.info(f'  ---- logfile: {str(log_file)}')
     logging.info(f'  ---- config_file: {str(config_file)}')
+    if quiet_mode:
+        logging.getLogger("").setLevel(logging.WARNING)
     if len(plug_storage_list) > 0:
         logging.info(f'  ---- plugs in storage mode: ')
         for plug_name in plug_storage_list:
@@ -883,7 +918,17 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
     success = asyncio.run(analyze_loop(start + timedelta(hours=max_hours_to_run)))
     stop = datetime.now()
     elapsed_time = stop - start
+    if quiet_mode:
+        logging.getLogger("").setLevel(logging.INFO)
     logging.info(f'>>>>> !!!! FINI: success: {str(success)} !!!! <<<<<')
+    logging.info(f'The following plugs were actively charging this run:')
+    plug: ActivePlug
+    for plug in active_plugs:
+        if plug.start_time and plug.stop_time:
+            plug_elapsed_charge_time = plug.stop_time - plug.start_time
+            logging.info(f'    {plug.plug_name}, charged for {str(elapsed_time).split(".", 2)[0]}')
+        else:
+            logging.info(f'    {plug.plug_name}, charged for unknown duration')
     logging.info(f'==> Elapsed time: {str(elapsed_time).split(".", 2)[0]}')
 
     send_my_mail(email, app_key, log_file)
@@ -983,7 +1028,8 @@ def main() -> None:
                            args.config_file,
                            args.email,
                            args.app_key,
-                           args.test_mode)
+                           args.test_mode,
+                           args.quiet_mode)
 
 if __name__ == '__main__':
     main()

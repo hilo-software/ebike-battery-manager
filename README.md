@@ -92,7 +92,7 @@ Three cutoff thresholds are supported.
 ### Command line arguments
 
 ```
-$ ./ebike_battery_manager.py -h
+ ./ebike_battery_manager.py -h
 usage: ebike_battery_manager.py [OPTIONS]
 
 Manage EBike battery charging with TP-Link smart socket(s)
@@ -108,6 +108,7 @@ options:
   -l , --log_file_name 
                         overrides logfile name, default is battery_plug_controller.log
   -c , --config_file    optional config file, useful to support multiple manufacturers, overrides default values
+  -q, --quiet_mode      reduces logging
   --nominal_charge_cutoff 
                         set the default cutoff power override for nominal charge complete
   --full_charge_repeat_limit 
@@ -144,7 +145,8 @@ options:
     - This section has a lower precedence that Storage.
 
 ### Profiling a Battery and Charger pair
-- Run a full charge sequence and examine the log
+- Run a full charge sequence and examine the log.
+    - Do NOT use quiet mode (-q) or you will not see the detailed data you will need.
 - Ideally you will see distinct changes in power consumption levels
     - These large changes are a clue as to where the nominal/full charge occurs.
     - If you have a multimeter, this is a good place to begin setting various nominal cutoff points and then measuring the battery voltage after the cutoff occurs and the plug shuts down.

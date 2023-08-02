@@ -921,14 +921,17 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
     if quiet_mode:
         logging.getLogger("").setLevel(logging.INFO)
     logging.info(f'>>>>> !!!! FINI: success: {str(success)} !!!! <<<<<')
-    logging.info(f'The following plugs were actively charging this run:')
-    plug: ActivePlug
-    for plug in active_plugs:
-        if plug.start_time and plug.stop_time:
-            plug_elapsed_charge_time = plug.stop_time - plug.start_time
-            logging.info(f'    {plug.plug_name}, charged for {str(elapsed_time).split(".", 2)[0]}')
-        else:
-            logging.info(f'    {plug.plug_name}, charged for unknown duration')
+    if len(active_plugs) > 0:
+        logging.info(f'The following plugs were actively charging this run:')
+        plug: ActivePlug
+        for plug in active_plugs:
+            if plug.start_time and plug.stop_time:
+                plug_elapsed_charge_time = plug.stop_time - plug.start_time
+                logging.info(f'    {plug.plug_name}, charged for {str(elapsed_time).split(".", 2)[0]}')
+            else:
+                logging.info(f'    {plug.plug_name}, charged for unknown duration')
+    else:
+        logging.info(f'No plugs were actively charging this run')
     logging.info(f'==> Elapsed time: {str(elapsed_time).split(".", 2)[0]}')
 
     send_my_mail(email, app_key, log_file)

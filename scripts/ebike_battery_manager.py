@@ -507,7 +507,7 @@ def set_active_plug(plug_name: str) -> None:
     if not any(plug_name == plug.plug_name for plug in active_plugs):
         active_plugs.add(ActivePlug(plug_name=plug_name, start_time=datetime.now()))
 
-def stop_active_plug(plug_name: str):
+def stop_active_plug(plug_name: str) -> None:
     active_plug: ActivePlug = next((x for x in active_plugs if x.plug_name == plug_name), None)
     if active_plug:
         active_plug.stop_time = datetime.now()
@@ -774,7 +774,7 @@ def send(from_addr, to_addr, app_key, msg) -> None:
     except Exception as e:
         logging.error(f'MAIL General ERROR: Unable to send mail: {str(e)}')
 
-def send_my_mail(email: str, app_key: str, log_file: str):
+def send_my_mail(email: str, app_key: str, log_file: str) -> None:
     if email == None or app_key == None:
         print('Email args missing not sending')
     else:
@@ -839,12 +839,12 @@ async def test_stuff() -> None:
         # await item.turn_on()
         logging.info(f'iterate: name: {item.name} on: {str(item.is_on())}, power: {str(item.get_power())}')
 
-def start_quiet_mode():
+def start_quiet_mode() -> None:
     global quiet_mode
     if quiet_mode:
         logging.getLogger("").setLevel(logging.WARNING)
 
-def stop_quiet_mode():
+def stop_quiet_mode() -> None:
     global quiet_mode
     logging.getLogger("").setLevel(logging.INFO)
 
@@ -862,7 +862,7 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
                            config_file: str,
                            email: str,
                            app_key: str,
-                           test_mode: bool):
+                           test_mode: bool) -> None:
     '''
     main entry point, expects any global defaults to be settled by this time.
     Currently in script mode, main() will do that work.  When not in script mode,

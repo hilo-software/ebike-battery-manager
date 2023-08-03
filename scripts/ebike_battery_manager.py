@@ -53,6 +53,7 @@ device_thresholds = {}
 plug_manufacturer_map = {}
 plug_storage_list = []
 plug_full_charge_list = []
+quiet_logging_mode: bool = False
 
 class ActivePlug():
     plug_name: str
@@ -463,7 +464,7 @@ async def init() -> int:
     '''
     global battery_plug_list
     found = await Discover.discover()
-    logging.info(f'>>>>> init <<<<<')
+    force_log(f'>>>>> init <<<<<')
     # Handle all plug names in config file CONFIG_PLUGS_SECTION.  These do not have to have a BATTERY_PREFIX
     manufacturer_plug_names = plug_manufacturer_map.keys()
     for smart_device in found.values():
@@ -485,7 +486,7 @@ async def setup() -> None:
         await plug.update()
         if not plug.is_on():
             await plug.turn_on()
-    logging.info('>>>>> setup <<<<<')
+    force_log('>>>>> setup <<<<<')
     
 def delete_plugs(plugs_to_delete: list) -> None:
     '''
@@ -524,7 +525,7 @@ async def analyze() -> bool:
     global probe_interval_secs
     global battery_plug_list
     global active_plugs
-    logging.info(f'>>>>> analyze --> probe_interval_secs: {str(probe_interval_secs)} <<<<<')
+    force_log(f'>>>>> analyze --> probe_interval_secs: {str(probe_interval_secs)} <<<<<')
     actively_charging = False
 
     def set_actively_charging(plug: BatteryPlug):
@@ -759,6 +760,7 @@ def send(from_addr, to_addr, app_key, msg) -> None:
         msg (_type_): _description_
     '''
     try:
+        logging.info(f'[EMAIL] send')
         smtpobj = smtplib.SMTP('smtp.gmail.com', 587)
         smtpobj.ehlo()
         smtpobj.starttls()
@@ -766,6 +768,7 @@ def send(from_addr, to_addr, app_key, msg) -> None:
         smtpobj.login(from_addr, app_key)
         smtpobj.sendmail(from_addr, to_addr, msg.as_string())
         smtpobj.close()
+        logging.info(f'[EMAIL] sent')
     except smtplib.SMTPException as e:
         logging.error(f'MAIL SMTP ERROR: Unable to send mail: {str(e)}')
     except Exception as e:
@@ -776,6 +779,7 @@ def send_my_mail(email: str, app_key: str, log_file: str):
         print('Email args missing not sending')
     else:
         try:
+            logging.info(f'[EMAIL] send_my_mail')
             # Create a text/plain message
             with open(log_file, 'r') as f:
                 msg = EmailMessage()
@@ -835,6 +839,19 @@ async def test_stuff() -> None:
         # await item.turn_on()
         logging.info(f'iterate: name: {item.name} on: {str(item.is_on())}, power: {str(item.get_power())}')
 
+def start_quiet_mode():
+    global quiet_mode
+    if quiet_mode:
+        logging.getLogger("").setLevel(logging.WARNING)
+
+def stop_quiet_mode():
+    global quiet_mode
+    logging.getLogger("").setLevel(logging.INFO)
+
+def force_log(log:str) -> None:
+    stop_quiet_mode()
+    logging.info(log)
+    start_quiet_mode()
 
 def run_battery_controller(nominal_charge_battery_power_threshold: float,
                            full_charge_battery_power_threshold: float,
@@ -845,8 +862,7 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
                            config_file: str,
                            email: str,
                            app_key: str,
-                           test_mode: bool,
-                           quiet_mode: bool):
+                           test_mode: bool):
     '''
     main entry point, expects any global defaults to be settled by this time.
     Currently in script mode, main() will do that work.  When not in script mode,
@@ -867,7 +883,7 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
         test_mode (bool): 
     '''
     global battery_plug_list, plug_storage_list, plug_full_charge_list
-    global device_thresholds, force_full_charge
+    global device_thresholds, force_full_charge, quiet_mode
 
     logging.info(f'Script logs are in {log_file}')
     start = datetime.now()
@@ -900,8 +916,7 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
     logging.info(f'  ---- max_hours_to_run: {str(max_hours_to_run)}')
     logging.info(f'  ---- logfile: {str(log_file)}')
     logging.info(f'  ---- config_file: {str(config_file)}')
-    if quiet_mode:
-        logging.getLogger("").setLevel(logging.WARNING)
+    start_quiet_mode()
     if len(plug_storage_list) > 0:
         logging.info(f'  ---- plugs in storage mode: ')
         for plug_name in plug_storage_list:
@@ -918,8 +933,7 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
     success = asyncio.run(analyze_loop(start + timedelta(hours=max_hours_to_run)))
     stop = datetime.now()
     elapsed_time = stop - start
-    if quiet_mode:
-        logging.getLogger("").setLevel(logging.INFO)
+    stop_quiet_mode()
     logging.info(f'>>>>> !!!! FINI: success: {str(success)} !!!! <<<<<')
     if len(active_plugs) > 0:
         logging.info(f'The following plugs were actively charging this run:')
@@ -955,6 +969,7 @@ def main() -> None:
     global max_cycles_in_fine_mode, max_hours_to_run
     global full_charge_repeat_limit
     global storage_charge_cycle_limit
+    global quiet_mode
 
     nominal_charge_battery_power_threshold = NOMINAL_CHARGE_THRESHOLD_DEFAULT
     full_charge_battery_power_threshold = FULL_CHARGE_THRESHOLD_DEFAULT
@@ -1021,7 +1036,8 @@ def main() -> None:
             logging.info(f'>>>>> OVERRIDE max_hours_to_run: {str(max_hours_to_run)}')
         except Exception as e:
             pass
-    
+    quiet_mode = args.quiet_mode
+
     run_battery_controller(nominal_charge_battery_power_threshold,
                            full_charge_battery_power_threshold,
                            storage_charge_battery_power_threshold,
@@ -1031,8 +1047,7 @@ def main() -> None:
                            args.config_file,
                            args.email,
                            args.app_key,
-                           args.test_mode,
-                           args.quiet_mode)
+                           args.test_mode)
 
 if __name__ == '__main__':
     main()

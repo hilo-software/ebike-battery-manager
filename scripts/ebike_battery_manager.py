@@ -941,7 +941,7 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
         for plug in active_plugs:
             if plug.start_time and plug.stop_time:
                 plug_elapsed_charge_time = plug.stop_time - plug.start_time
-                logging.info(f'    {plug.plug_name}, charged for {str(elapsed_time).split(".", 2)[0]}')
+                logging.info(f'    {plug.plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]}')
             else:
                 logging.info(f'    {plug.plug_name}, charged for unknown duration')
     else:

@@ -39,6 +39,7 @@ DEFAULT_LOG_FILE = 'ebike_battery_manager.log'
 RETRY_LIMIT = 3
 COARSE_PROBE_INTERVAL_SECS = 10 * 60
 FULL_CHARGE_REPEAT_LIMIT = 3
+PLUG_RETRY_SETUP_LIMIT = 3
 
 full_charge_repeat_limit = FULL_CHARGE_REPEAT_LIMIT
 fine_probe_interval_secs = 5 * 60
@@ -482,11 +483,40 @@ async def setup() -> None:
 
     '''
     global battery_plug_list
+    force_log('>>>>> setup ENTRY')
     for plug in battery_plug_list:
         await plug.update()
-        if not plug.is_on():
-            await plug.turn_on()
-    force_log('>>>>> setup <<<<<')
+        plug_retry_setup_ct: int = 0
+        while plug_retry_setup_ct < PLUG_RETRY_SETUP_LIMIT:
+            logging.info(f'>>>>> setup plug: {plug.name}')
+            if not plug.is_on():
+                await plug.turn_on()
+                await asyncio.sleep(2)
+                await plug.update()
+                device_power_consumption = plug.get_power()
+                if device_power_consumption > 0:
+                    logging.info(f'>>>>> setup plug: {plug.name} is using power: {device_power_consumption}')
+                    break
+                else:
+                    # might not have started correctly, retry
+                    # It might be ok if no charger
+                    plug_retry_setup_ct += 1
+                    await plug.turn_off()
+                    await asyncio.sleep(2)
+                    await plug.update()
+            else:
+                await plug.update()
+                device_power_consumption = plug.get_power()
+                if device_power_consumption > 0:
+                    logging.info(f'>>>>> setup plug: {plug.name} is using power: {device_power_consumption}')
+                    break
+
+        if plug_retry_setup_ct == PLUG_RETRY_SETUP_LIMIT:
+            logging.warning(f'!!!!! WARNING !!!!!, no power usage on plug: {plug.name}')
+        else:
+            force_log(f'>>>>> setup -- plug: {plug.name} appears active, retries: {plug_retry_setup_ct}')
+            
+    force_log('>>>>> setup EXIT')
     
 def delete_plugs(plugs_to_delete: list) -> None:
     '''

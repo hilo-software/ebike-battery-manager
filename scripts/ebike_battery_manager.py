@@ -491,7 +491,7 @@ async def setup() -> None:
             logging.info(f'>>>>> setup plug: {plug.name}')
             if not plug.is_on():
                 await plug.turn_on()
-                await asyncio.sleep(2)
+                await asyncio.sleep(5)
                 await plug.update()
                 device_power_consumption = plug.get_power()
                 if device_power_consumption > 0:

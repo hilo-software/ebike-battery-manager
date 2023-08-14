@@ -576,6 +576,7 @@ async def analyze() -> bool:
 
         if not plug.is_on():
             logging.info(plug_name + ' is OFF')
+            plugs_to_delete.append(plug)
             continue
 
         device_power_consumption = plug.get_power()

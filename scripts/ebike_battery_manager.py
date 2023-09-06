@@ -555,7 +555,7 @@ async def analyze() -> bool:
     global probe_interval_secs
     global battery_plug_list
     global active_plugs
-    force_log(f'>>>>> analyze --> probe_interval_secs: {str(probe_interval_secs)} <<<<<')
+    logging.info(f'>>>>> analyze --> probe_interval_secs: {str(probe_interval_secs)} <<<<<')
     actively_charging = False
 
     def set_actively_charging(plug: BatteryPlug):
@@ -636,6 +636,7 @@ async def analyze_loop(final_stop_time: datetime) -> bool:
     global max_hours_to_run, max_runtime_exceeded
     retry_limit = RETRY_LIMIT
     success = False
+    force_log(f'analyze: START')
     while not success and retry_limit > 0:
         # check absolute stop limit
         if datetime.now() > final_stop_time:

@@ -16,14 +16,14 @@
 ### Possible Benefits
 
 - The script monitors charging of batteries and turns off the plug that the charger is connected to when a suitable level of charge has been attained.
-- This should be equivalent to unplugging the charger from the  battery and avoiding any safety issues associated with leaving chargers and batteries plugged into power after they are charged.
+- This should be equivalent to unplugging the charger from the  wall and avoiding any safety issues associated with leaving chargers and batteries plugged into power after they are charged.
 - Charging can be scheduled for off peak periods since when not charging, the plug is turned off.
 - Three modes are supported, **nominal**, **full charge** and **storage**:
-    - The **nominal** charge mode turns off the charger slightly before full charge is attained to hopefully reduce wear on the battery and extend battery life.
+    - The **nominal** charge mode turns off the charger slightly before full charge is attained to reduce wear on the battery and extend battery life.
     - The **full charge** mode allows the battery to charge fully to balance the cells, something that periodically needs to be done.
     - The **storage** charge mode allows keeping the battery at a lower level of charge when the battery will not be used for an extended period of time, preventing unnecessary wear on the battery.
 
-## How it tries to do it
+## How it works
 
  The script looks at the power draw of the TP-Link plug that the charger is plugged into and based on the measured power draw, will shut off the plug once the chargers power draw drops below either nominal or full charge cutoff limits, depending on the mode the script is used in.
 

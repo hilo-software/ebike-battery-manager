@@ -72,7 +72,7 @@ class BatteryChargeMode(Enum):
     FULL = 2
     STORAGE = 3
 
-
+@dataclass
 class DeviceThresholds():
     '''
     Device/Manufacturer specific threshold values
@@ -88,18 +88,6 @@ class DeviceThresholds():
     storage_charge_battery_cycle_limit: int
     coarse_probe_threshold_margin: float
 
-    def __init__(self, manufacturer_name: str, nominal_charge_battery_power_threshold: float,
-                 full_charge_battery_power_threshold: float,
-                 storage_charge_battery_power_threshold: float,
-                 storage_charge_battery_cycle_limit: int,
-                 coarse_probe_threshold_margin: float
-                 ):
-        self.manufacturer_name = manufacturer_name
-        self.nominal_charge_battery_power_threshold = nominal_charge_battery_power_threshold
-        self.full_charge_battery_power_threshold = full_charge_battery_power_threshold
-        self.storage_charge_battery_power_threshold = storage_charge_battery_power_threshold
-        self.storage_charge_battery_cycle_limit = storage_charge_battery_cycle_limit
-        self.coarse_probe_threshold_margin = coarse_probe_threshold_margin
 
 class BatteryPlug():
     '''
@@ -474,6 +462,7 @@ async def init() -> int:
     battery_count = len(battery_plug_list)
     if battery_count == 0:
         logging.warning(f'>>>>> init <<<<< -- EMPTY battery_plug_list + DEBUG -- devices found: {str(found)}')
+        logging.warning(f'>>>>> init <<<<< -- If this error persists, please restart the TP-Link power strip or plugs to reset them')
     return battery_count
 
 async def setup() -> None:

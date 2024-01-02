@@ -415,7 +415,7 @@ def create_battery_strip_plug(plug_name: str, smart_device: SmartDevice, index: 
         plug.set_battery_charge_mode(BatteryChargeMode.FULL if force_full_charge else BatteryChargeMode.NOMINAL)
     return plug
 
-def update_battery_plug_list(smart_device: SmartDevice, manufacturer_plug_names: dict) -> None:
+async def update_battery_plug_list(smart_device: SmartDevice, manufacturer_plug_names: dict) -> None:
     '''
     Finds plug depending on if the plug is singular or part of a battery strip.
     Create the appropriate BatteryPlug or BatteryStripPlug and append to the global battery_plug_list
@@ -440,6 +440,8 @@ def update_battery_plug_list(smart_device: SmartDevice, manufacturer_plug_names:
             if BATTERY_PREFIX in plug.alias or plug.alias in manufacturer_plug_names:
                 strip_plug = create_battery_strip_plug(plug.alias, smart_device, index)
                 logging.info(f'SmartStrip: plug: {plug.alias}, battery_charge_mode: {str(strip_plug.battery_charge_mode)}')
+                await strip_plug.update()
+                logging.info(f'SmartStrip: plug: {plug.alias}, update() ok')
                 battery_plug_list.append(strip_plug)
             index = index + 1
 
@@ -458,7 +460,7 @@ async def init() -> int:
     manufacturer_plug_names = plug_manufacturer_map.keys()
     for smart_device in found.values():
         await smart_device.update()
-        update_battery_plug_list(smart_device, manufacturer_plug_names)
+        await update_battery_plug_list(smart_device, manufacturer_plug_names)
     battery_count = len(battery_plug_list)
     if battery_count == 0:
         logging.warning(f'>>>>> init <<<<< -- EMPTY battery_plug_list + DEBUG -- devices found: {str(found)}')
@@ -499,6 +501,12 @@ async def setup() -> None:
                 if device_power_consumption > 0:
                     logging.info(f'>>>>> setup plug: {plug.name} is using power: {device_power_consumption}')
                     break
+                else:
+                    logging.info(f'>>>>> setup plug: {plug.name} is NOT using power: {device_power_consumption}')
+                    plug_retry_setup_ct += 1
+                    await plug.turn_off()
+                    await asyncio.sleep(2)
+                    await plug.update()
 
         if plug_retry_setup_ct == PLUG_RETRY_SETUP_LIMIT:
             logging.warning(f'!!!!! WARNING !!!!!, no power usage on plug: {plug.name}')

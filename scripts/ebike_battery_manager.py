@@ -728,6 +728,28 @@ def verify_config_file(config_file_name: str) -> bool:
                 manufacturers.remove(CONFIG_STORAGE_SECTION)
             if CONFIG_FULL_CHARGE_SECTION in manufacturers:
                 manufacturers.remove(CONFIG_FULL_CHARGE_SECTION)
+            # Extract manufacture specific DeviceThresholds here
+            for manufacturer in manufacturers:
+                #  valid manufacturer, validate the three tags
+                if (NOMINAL_THRESHOLD_TAG in config_parser[manufacturer] and
+                    FULL_CHARGE_THRESHOLD_TAG in config_parser[manufacturer] and
+                        COARSE_PROBE_THRESHOLD_MARGIN_TAG in config_parser[manufacturer]):
+                    nominal_charge_battery_power_threshold = float(config_parser[manufacturer][NOMINAL_THRESHOLD_TAG])
+                    if STORAGE_CHARGE_THRESHOLD_TAG in config_parser[manufacturer]:
+                        storage_charge_battery_power_threshold = float(config_parser[manufacturer][STORAGE_CHARGE_THRESHOLD_TAG])
+                    else:
+                        storage_charge_battery_power_threshold = nominal_charge_battery_power_threshold
+                    if STORAGE_CHARGE_CYCLE_LIMIT_TAG in config_parser[manufacturer]:
+                        storage_charge_battery_cycle_limit = int(config_parser[manufacturer][STORAGE_CHARGE_CYCLE_LIMIT_TAG])
+                    else:
+                        storage_charge_battery_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
+                    device_thresholds[manufacturer] = DeviceThresholds(manufacturer,
+                                                                    nominal_charge_battery_power_threshold,
+                                                                    float(config_parser[manufacturer][FULL_CHARGE_THRESHOLD_TAG]),
+                                                                    storage_charge_battery_power_threshold,
+                                                                    storage_charge_battery_cycle_limit,
+                                                                    float(config_parser[manufacturer][COARSE_PROBE_THRESHOLD_MARGIN_TAG]))
+
             sections = list(config_parser.keys())
             if CONFIG_PLUGS_SECTION in sections:
                 for plug_name, manufacturer in config_parser[CONFIG_PLUGS_SECTION].items():
@@ -736,25 +758,7 @@ def verify_config_file(config_file_name: str) -> bool:
                         verified = False
                         plug_manufacturer_map[plug_name] = DEFAULT_THRESHOLDS_TAG
                         continue
-                    #  valid manufacturer, validate the three tags
-                    if (NOMINAL_THRESHOLD_TAG in config_parser[manufacturer] and
-                        FULL_CHARGE_THRESHOLD_TAG in config_parser[manufacturer] and
-                            COARSE_PROBE_THRESHOLD_MARGIN_TAG in config_parser[manufacturer]):
-                        nominal_charge_battery_power_threshold = float(config_parser[manufacturer][NOMINAL_THRESHOLD_TAG])
-                        if STORAGE_CHARGE_THRESHOLD_TAG in config_parser[manufacturer]:
-                            storage_charge_battery_power_threshold = float(config_parser[manufacturer][STORAGE_CHARGE_THRESHOLD_TAG])
-                        else:
-                            storage_charge_battery_power_threshold = nominal_charge_battery_power_threshold
-                        if STORAGE_CHARGE_CYCLE_LIMIT_TAG in config_parser[manufacturer]:
-                            storage_charge_battery_cycle_limit = int(config_parser[manufacturer][STORAGE_CHARGE_CYCLE_LIMIT_TAG])
-                        else:
-                            storage_charge_battery_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
-                        device_thresholds[manufacturer] = DeviceThresholds(manufacturer,
-                                                                        nominal_charge_battery_power_threshold,
-                                                                        float(config_parser[manufacturer][FULL_CHARGE_THRESHOLD_TAG]),
-                                                                        storage_charge_battery_power_threshold,
-                                                                        storage_charge_battery_cycle_limit,
-                                                                        float(config_parser[manufacturer][COARSE_PROBE_THRESHOLD_MARGIN_TAG]))
+                    if manufacturer in device_thresholds:
                         plug_manufacturer_map[plug_name] = manufacturer
                     else:
                         plug_manufacturer_map[plug_name] = DEFAULT_THRESHOLDS_TAG
@@ -917,9 +921,10 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
     logging.info(f'Script logs are in {log_file}')
     start = datetime.now()
 
+    config_file_is_valid = False
     try:
         if config_file != None:
-            verify_config_file(config_file)
+            config_file_is_valid = verify_config_file(config_file)
     except Exception as e:
         pass
     # By here global default values for thresholds are valid so create the DEFAULT one
@@ -936,15 +941,26 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
     logging.info(f'  ---- test_mode: {str(test_mode)}')
     logging.info(f'  ---- quiet_mode: {str(quiet_mode)}')
     logging.info(f'  ---- force_full_charge: {str(force_full_charge)}')
-    logging.info(f'  ---- nominal_charge_battery_power_threshold: {str(nominal_charge_battery_power_threshold)}')
-    logging.info(f'  ---- full_charge_battery_power_threshold: {str(full_charge_battery_power_threshold)}')
-    logging.info(f'  ---- storage_charge_battery_power_threshold: {str(storage_charge_battery_power_threshold)}')
     logging.info(f'  ---- full_charge_repeat_limit: {str(full_charge_repeat_limit)}')
     logging.info(f'  ---- max_cycles_in_fine_mode: {str(max_cycles_in_fine_mode)}')
-    logging.info(f'  ---- storage_charge_cycle_limit: {str(storage_charge_cycle_limit)}')
     logging.info(f'  ---- max_hours_to_run: {str(max_hours_to_run)}')
     logging.info(f'  ---- logfile: {str(log_file)}')
     logging.info(f'  ---- config_file: {str(config_file)}')
+    logging.info(f'  ---- DEFAULT thresholds')
+    logging.info(f'  -------- nominal_charge_battery_power_threshold: {str(nominal_charge_battery_power_threshold)}')
+    logging.info(f'  -------- full_charge_battery_power_threshold: {str(full_charge_battery_power_threshold)}')
+    logging.info(f'  -------- storage_charge_battery_power_threshold: {str(storage_charge_battery_power_threshold)}')
+    logging.info(f'  -------- storage_charge_cycle_limit: {str(storage_charge_cycle_limit)}')
+    if config_file_is_valid:
+        logging.info(f'  ---- MANUFACTURER specific thresholds')
+        for manufacturer in device_thresholds:
+            if manufacturer == "DEFAULT":
+                continue
+            logging.info(f'  ---- manufacturer: {str(manufacturer)}')
+            logging.info(f'  -------- nominal_charge_battery_power_threshold: {str(device_thresholds[manufacturer].nominal_charge_battery_power_threshold)}')
+            logging.info(f'  -------- full_charge_battery_power_threshold: {str(device_thresholds[manufacturer].full_charge_battery_power_threshold)}')
+            logging.info(f'  -------- storage_charge_battery_power_threshold: {str(device_thresholds[manufacturer].storage_charge_battery_power_threshold)}')
+            logging.info(f'  -------- storage_charge_cycle_limit: {str(device_thresholds[manufacturer].storage_charge_battery_cycle_limit)}')
     start_quiet_mode()
     if len(plug_storage_list) > 0:
         logging.info(f'  ---- plugs in storage mode: ')

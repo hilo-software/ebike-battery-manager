@@ -82,8 +82,10 @@ class DeviceThresholds():
     Note: manufacturer specific values are determined experimentally and are NOT furnished by the manufacturer 
     '''
     manufacturer_name: str
+    nominal_charge_battery_power_start_threshold: float
     nominal_charge_battery_power_threshold: float
     full_charge_battery_power_threshold: float
+    storage_charge_battery_power_start_threshold: float
     storage_charge_battery_power_threshold: float
     storage_charge_battery_cycle_limit: int
     coarse_probe_threshold_margin: float

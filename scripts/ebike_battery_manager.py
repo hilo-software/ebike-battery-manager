@@ -11,6 +11,7 @@ from typing import Set
 from os.path import isfile
 from enum import Enum
 import configparser
+import traceback
 from dataclasses import dataclass
 
 # Constants
@@ -31,8 +32,10 @@ STORAGE_CHARGE_THRESHOLD_TAG = 'storage_charge_battery_power_threshold'
 STORAGE_CHARGE_CYCLE_LIMIT_TAG = 'storage_charge_battery_cycle_limit'
 COARSE_PROBE_THRESHOLD_MARGIN_TAG = 'coarse_probe_threshold_margin'
 # Now experimenting with various thresholds.  For Rad 90W appears to end up at ~91%.
+NOMINAL_CHARGE_START_THRESHOLD_DEFAULT = 90.0
 NOMINAL_CHARGE_THRESHOLD_DEFAULT = 90.0
 FULL_CHARGE_THRESHOLD_DEFAULT = 5.0
+STORAGE_CHARGE_START_THRESHOLD_DEFAULT = 90.0
 STORAGE_CHARGE_THRESHOLD_DEFAULT = 90.0
 STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT = 1
 DEFAULT_LOG_FILE = 'ebike_battery_manager.log'
@@ -558,6 +561,7 @@ async def analyze() -> bool:
     actively_charging = False
 
     def set_actively_charging(plug: BatteryPlug):
+        logging.error(f'!!!! DEBUG: set_actively_charging(): plug: {str(plug.name)}')
         nonlocal actively_charging
         actively_charging = True
         logging.info(f'{plug.name} is actively_charging')
@@ -571,16 +575,21 @@ async def analyze() -> bool:
     plugs_to_delete = []
     for plug in battery_plug_list:
         plug_name = plug.name
+        logging.error(f'!!!! DEBUG: analyze(): LOOPTOP: plug: {str(plug_name)}')
         await plug.update()
+        logging.error(f'!!!! DEBUG: analyze(): LOOP - after update: plug: {str(plug_name)}')
 
         if not plug.is_on():
             logging.info(plug_name + ' is OFF')
             plugs_to_delete.append(plug)
             continue
+        logging.error(f'!!!! DEBUG: analyze(): LOOP - after is_on: plug: {str(plug_name)}')
 
         device_power_consumption = plug.get_power()
+        logging.error(f'!!!! DEBUG: analyze(): LOOP - after get_power: plug: {str(plug_name)}')
         logging.info(plug_name + ': ' + str(device_power_consumption))
         if plug.threshold_check(device_power_consumption):
+            logging.error(f'!!!! DEBUG: analyze(): LOOP - after threshold_check, True: plug: {str(plug_name)}')
             turn_off_plug = plug.check_full_charge() or plug.check_storage_mode()
             if turn_off_plug:
                 logging.info(f'{plug_name}: (threshold_check) has no battery present or it may be fully charged: {str(device_power_consumption)}')
@@ -591,6 +600,7 @@ async def analyze() -> bool:
             next_probe_interval_secs = fine_probe_interval_secs
             set_actively_charging(plug)
             continue
+        logging.error(f'!!!! DEBUG: analyze(): LOOP - after threshold_check, False: plug: {str(plug_name)}')
         
         # By here check if we should switch to fine_probe_interval to detect charged state sooner
         if not plug.fine_mode_active and next_probe_interval_secs > fine_probe_interval_secs and device_power_consumption < plug.get_coarse_probe_threshold():
@@ -607,6 +617,7 @@ async def analyze() -> bool:
                 continue
 
         set_actively_charging(plug)
+        logging.error(f'!!!! DEBUG: analyze(): LOOP BOTTOM: plug: {str(plug_name)}')
 
     delete_plugs(plugs_to_delete)
 
@@ -659,8 +670,10 @@ async def analyze_loop(final_stop_time: datetime) -> bool:
             success = True
         except Exception as e:
             retry_limit = retry_limit - 1
+            traceback_str = traceback.format_exc()
             logging.error(f'!!!!!>>>>> ERROR ERROR ERROR ERROR retry_limit: {str(retry_limit)} <<<<<!!!!!')
             logging.error(f'!!!!!>>>>> ERROR in Execution e: {str(e)}<<<<<!!!!!')
+            logging.error(f'!!!!!>>>>> ERROR traceback: {traceback_str} <<<<<!!!!!')
             if len(battery_plug_list) > 0:
                 logging.error('!!!!!>>>>> ERROR Attempting shutdown_plugs <<<<<!!!!!')
                 await shutdown_plugs()
@@ -888,8 +901,10 @@ def force_log(log:str) -> None:
     logging.info(log)
     start_quiet_mode()
 
-def run_battery_controller(nominal_charge_battery_power_threshold: float,
+def run_battery_controller(nominal_charge_start_battery_power_threshold: float,
+                            nominal_charge_battery_power_threshold: float,
                            full_charge_battery_power_threshold: float,
+                           storage_charge_start_battery_power_threshold: float,
                            storage_charge_battery_power_threshold: float,
                            storage_charge_cycle_limit: int,
                            max_hours_to_run: int,
@@ -931,8 +946,10 @@ def run_battery_controller(nominal_charge_battery_power_threshold: float,
         pass
     # By here global default values for thresholds are valid so create the DEFAULT one
     default_thresholds = DeviceThresholds(DEFAULT_THRESHOLDS_TAG, 
+                                          nominal_charge_start_battery_power_threshold,
                                           nominal_charge_battery_power_threshold,
                                           full_charge_battery_power_threshold,
+                                          storage_charge_start_battery_power_threshold,
                                           storage_charge_battery_power_threshold,
                                           storage_charge_cycle_limit,
                                           COARSE_PROBE_THRESHOLD_MARGIN
@@ -1018,8 +1035,10 @@ def main() -> None:
     global storage_charge_cycle_limit
     global quiet_mode
 
+    nominal_charge_start_battery_power_threshold = NOMINAL_CHARGE_START_THRESHOLD_DEFAULT
     nominal_charge_battery_power_threshold = NOMINAL_CHARGE_THRESHOLD_DEFAULT
     full_charge_battery_power_threshold = FULL_CHARGE_THRESHOLD_DEFAULT
+    storage_charge_start_battery_power_threshold = STORAGE_CHARGE_START_THRESHOLD_DEFAULT
     storage_charge_battery_power_threshold = STORAGE_CHARGE_THRESHOLD_DEFAULT
     log_file = DEFAULT_LOG_FILE
 
@@ -1085,8 +1104,10 @@ def main() -> None:
             pass
     quiet_mode = args.quiet_mode
 
-    run_battery_controller(nominal_charge_battery_power_threshold,
+    run_battery_controller(nominal_charge_start_battery_power_threshold,
+                           nominal_charge_battery_power_threshold,
                            full_charge_battery_power_threshold,
+                           storage_charge_start_battery_power_threshold,
                            storage_charge_battery_power_threshold,
                            storage_charge_cycle_limit,
                            max_hours_to_run,

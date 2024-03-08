@@ -31,6 +31,7 @@ ACTIVE_CHARGE_THRESHOLD_TAG = 'active_charge_battery_power_threshold'
 STORAGE_CHARGE_THRESHOLD_TAG = 'storage_charge_battery_power_threshold'
 STORAGE_CHARGE_CYCLE_LIMIT_TAG = 'storage_charge_battery_cycle_limit'
 COARSE_PROBE_THRESHOLD_MARGIN_TAG = 'coarse_probe_threshold_margin'
+INVESTIGATE_START_CURRENT_FILE = 'start_current_data.txt'
 # Now experimenting with various thresholds.  For Rad 90W appears to end up at ~91%.
 NOMINAL_CHARGE_START_THRESHOLD_DEFAULT = 90.0
 NOMINAL_CHARGE_THRESHOLD_DEFAULT = 90.0
@@ -58,6 +59,9 @@ plug_manufacturer_map = {}
 plug_storage_list = []
 plug_full_charge_list = []
 quiet_logging_mode: bool = False
+analyze_first_entry = True
+
+start_threshold_logger = logging.getLogger('start_threshold_logger')
 
 class ActivePlug():
     plug_name: str
@@ -557,6 +561,9 @@ async def analyze() -> bool:
     global probe_interval_secs
     global battery_plug_list
     global active_plugs
+    global start_threshold_logger
+    global analyze_first_entry
+
     logging.info(f'>>>>> analyze --> probe_interval_secs: {str(probe_interval_secs)} <<<<<')
     actively_charging = False
 
@@ -573,6 +580,7 @@ async def analyze() -> bool:
     # At the end of the loop, check next_probe_interval_secs against probe_interval_secs
     next_probe_interval_secs = COARSE_PROBE_INTERVAL_SECS
     plugs_to_delete = []
+
     for plug in battery_plug_list:
         plug_name = plug.name
         logging.error(f'!!!! DEBUG: analyze(): LOOPTOP: plug: {str(plug_name)}')
@@ -588,6 +596,8 @@ async def analyze() -> bool:
         device_power_consumption = plug.get_power()
         logging.error(f'!!!! DEBUG: analyze(): LOOP - after get_power: plug: {str(plug_name)}')
         logging.info(plug_name + ': ' + str(device_power_consumption))
+        if analyze_first_entry:
+            start_threshold_logger.info(plug_name + ': ' + str(device_power_consumption))
         if plug.threshold_check(device_power_consumption):
             logging.error(f'!!!! DEBUG: analyze(): LOOP - after threshold_check, True: plug: {str(plug_name)}')
             turn_off_plug = plug.check_full_charge() or plug.check_storage_mode()
@@ -619,6 +629,7 @@ async def analyze() -> bool:
         set_actively_charging(plug)
         logging.error(f'!!!! DEBUG: analyze(): LOOP BOTTOM: plug: {str(plug_name)}')
 
+    analyze_first_entry = False
     delete_plugs(plugs_to_delete)
 
     if actively_charging and (probe_interval_secs != next_probe_interval_secs):
@@ -933,7 +944,7 @@ def run_battery_controller(nominal_charge_start_battery_power_threshold: float,
         test_mode (bool): 
     '''
     global battery_plug_list, plug_storage_list, plug_full_charge_list
-    global device_thresholds, force_full_charge, quiet_mode
+    global device_thresholds, force_full_charge, quiet_mode, start_threshold_logger
 
     logging.info(f'Script logs are in {log_file}')
     start = datetime.now()
@@ -1001,13 +1012,16 @@ def run_battery_controller(nominal_charge_start_battery_power_threshold: float,
     logging.info(f'>>>>> !!!! FINI: success: {str(success)} !!!! <<<<<')
     if len(active_plugs) > 0:
         logging.info(f'The following plugs were actively charging this run:')
+        start_threshold_logger.info(f'The following plugs were actively charging this run:')
         plug: ActivePlug
         for plug in active_plugs:
             if plug.start_time and plug.stop_time:
                 plug_elapsed_charge_time = plug.stop_time - plug.start_time
                 logging.info(f'    {plug.plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]}')
+                start_threshold_logger.info(f'    {plug.plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]}')
             else:
                 logging.info(f'    {plug.plug_name}, charged for unknown duration')
+                start_threshold_logger.info(f'    {plug.plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]}')
     else:
         logging.info(f'No plugs were actively charging this run')
     logging.info(f'==> Elapsed time: {str(elapsed_time).split(".", 2)[0]}')
@@ -1034,6 +1048,7 @@ def main() -> None:
     global full_charge_repeat_limit
     global storage_charge_cycle_limit
     global quiet_mode
+    global start_threshold_logger
 
     nominal_charge_start_battery_power_threshold = NOMINAL_CHARGE_START_THRESHOLD_DEFAULT
     nominal_charge_battery_power_threshold = NOMINAL_CHARGE_THRESHOLD_DEFAULT
@@ -1044,6 +1059,14 @@ def main() -> None:
 
     parser = init_argparse()
     args = parser.parse_args()
+
+    # investigative logging
+    start_threshold_logger.setLevel(logging.INFO)
+    file_handler = logging.FileHandler(INVESTIGATE_START_CURRENT_FILE)
+    file_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    start_threshold_logger.addHandler(file_handler)
 
     # set up logging
     if args.log_file_name != None:

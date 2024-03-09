@@ -25,25 +25,29 @@ CONFIG_PLUGS_SECTION = 'Plugs'
 CONFIG_STORAGE_SECTION = 'Storage'
 CONFIG_FULL_CHARGE_SECTION = 'FullCharge'
 DEFAULT_THRESHOLDS_TAG = 'DEFAULT'
-NOMINAL_THRESHOLD_TAG = 'nominal_charge_battery_power_threshold'
-FULL_CHARGE_THRESHOLD_TAG = 'full_charge_battery_power_threshold'
-ACTIVE_CHARGE_THRESHOLD_TAG = 'active_charge_battery_power_threshold'
-STORAGE_CHARGE_THRESHOLD_TAG = 'storage_charge_battery_power_threshold'
-STORAGE_CHARGE_CYCLE_LIMIT_TAG = 'storage_charge_battery_cycle_limit'
+NOMINAL_START_THRESHOLD_TAG = 'nominal_charge_start_power_threshold'
+NOMINAL_STOP_THRESHOLD_TAG = 'nominal_charge_stop_power_threshold'
+FULL_CHARGE_THRESHOLD_TAG = 'full_charge_power_threshold'
+ACTIVE_CHARGE_THRESHOLD_TAG = 'active_charge_power_threshold'
+STORAGE_CHARGE_START_THRESHOLD_TAG = 'storage_charge_start_power_threshold'
+STORAGE_CHARGE_STOP_THRESHOLD_TAG = 'storage_charge_stop_power_threshold'
+STORAGE_CHARGE_CYCLE_LIMIT_TAG = 'storage_charge_cycle_limit'
 COARSE_PROBE_THRESHOLD_MARGIN_TAG = 'coarse_probe_threshold_margin'
 INVESTIGATE_START_CURRENT_FILE = 'start_current_data.txt'
 # Now experimenting with various thresholds.  For Rad 90W appears to end up at ~91%.
 NOMINAL_CHARGE_START_THRESHOLD_DEFAULT = 90.0
-NOMINAL_CHARGE_THRESHOLD_DEFAULT = 90.0
+NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT = 90.0
 FULL_CHARGE_THRESHOLD_DEFAULT = 5.0
 STORAGE_CHARGE_START_THRESHOLD_DEFAULT = 90.0
-STORAGE_CHARGE_THRESHOLD_DEFAULT = 90.0
+STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT = 90.0
 STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT = 1
 DEFAULT_LOG_FILE = 'ebike_battery_manager.log'
 RETRY_LIMIT = 3
 COARSE_PROBE_INTERVAL_SECS = 10 * 60
 FULL_CHARGE_REPEAT_LIMIT = 3
 PLUG_RETRY_SETUP_LIMIT = 3
+
+mandatory_config_manufacturer_tags = [NOMINAL_STOP_THRESHOLD_TAG, FULL_CHARGE_THRESHOLD_TAG, COARSE_PROBE_THRESHOLD_MARGIN_TAG]
 
 full_charge_repeat_limit = FULL_CHARGE_REPEAT_LIMIT
 fine_probe_interval_secs = 5 * 60
@@ -93,12 +97,12 @@ class DeviceThresholds():
     Note: manufacturer specific values are determined experimentally and are NOT furnished by the manufacturer 
     '''
     manufacturer_name: str
-    nominal_charge_battery_power_start_threshold: float
-    nominal_charge_battery_power_threshold: float
-    full_charge_battery_power_threshold: float
-    storage_charge_battery_power_start_threshold: float
-    storage_charge_battery_power_threshold: float
-    storage_charge_battery_cycle_limit: int
+    nominal_charge_start_power_threshold: float
+    nominal_charge_stop_power_threshold: float
+    full_charge_power_threshold: float
+    storage_charge_start_power_threshold: float
+    storage_charge_stop_power_threshold: float
+    storage_charge_cycle_limit: int
     coarse_probe_threshold_margin: float
 
 
@@ -128,7 +132,7 @@ class BatteryPlug():
         self.full_charge_repeat_count = 0
         self.full_charge_repeat_limit = FULL_CHARGE_REPEAT_LIMIT
         self.fine_mode_active = False
-        self.storage_charge_cycle_limit = thresholds.storage_charge_battery_cycle_limit
+        self.storage_charge_cycle_limit = thresholds.storage_charge_cycle_limit
         self.max_cycles_in_fine_mode = max_cycles_in_fine_mode
         self.thresholds = thresholds
         self.battery_charge_mode = BatteryChargeMode.NOMINAL
@@ -143,20 +147,29 @@ class BatteryPlug():
         return self.device.is_on
 
     def get_full_charge_battery_power_threshold(self) -> float:
-        return self.thresholds.full_charge_battery_power_threshold
+        return self.thresholds.full_charge_power_threshold
 
     def get_nominal_charge_battery_power_threshold(self) -> float:
-        return self.thresholds.nominal_charge_battery_power_threshold
+        return self.thresholds.nominal_charge_stop_power_threshold
 
     def get_active_charge_battery_power_threshold(self) -> float:
         match self.battery_charge_mode:
             case BatteryChargeMode.NOMINAL:
-                return self.thresholds.nominal_charge_battery_power_threshold
+                return self.thresholds.nominal_charge_stop_power_threshold
             case BatteryChargeMode.FULL:
-                return self.thresholds.full_charge_battery_power_threshold
+                return self.thresholds.full_charge_power_threshold
             case BatteryChargeMode.STORAGE:
-                return self.thresholds.storage_charge_battery_power_threshold
+                return self.thresholds.storage_charge_stop_power_threshold
 
+    def get_start_power_threshold(self) -> float:
+        match self.battery_charge_mode:
+            case BatteryChargeMode.NOMINAL:
+                return self.thresholds.nominal_charge_start_power_threshold
+            case BatteryChargeMode.STORAGE:
+                return self.thresholds.storage_charge_start_power_threshold
+            case BatteryChargeMode.FULL:
+                return self.thresholds.full_charge_power_threshold
+                        
     def check_full_charge(self) -> bool:
         '''
         Checks and determines if we have reached a stopping point
@@ -197,6 +210,11 @@ class BatteryPlug():
                 pass
 
         return False
+    
+    def start_threshold_check(self, device_power_consumption: float) -> bool:
+        if self.battery_charge_mode == BatteryChargeMode.FULL:
+            return True
+        return device_power_consumption < self.get_start_power_threshold()
 
     def threshold_check(self, device_power_consumption: float) -> bool:
         '''
@@ -232,11 +250,11 @@ class BatteryPlug():
         '''
         match self.battery_charge_mode:
             case BatteryChargeMode.NOMINAL:
-                return self.thresholds.nominal_charge_battery_power_threshold + self.thresholds.coarse_probe_threshold_margin
+                return self.thresholds.nominal_charge_stop_power_threshold + self.thresholds.coarse_probe_threshold_margin
             case BatteryChargeMode.FULL:
-                return self.thresholds.full_charge_battery_power_threshold + self.thresholds.coarse_probe_threshold_margin
+                return self.thresholds.full_charge_power_threshold + self.thresholds.coarse_probe_threshold_margin
             case BatteryChargeMode.STORAGE:
-                return self.thresholds.storage_charge_battery_power_threshold + self.thresholds.coarse_probe_threshold_margin
+                return self.thresholds.storage_charge_stop_power_threshold + self.thresholds.coarse_probe_threshold_margin
 
     def set_battery_charge_mode(self, mode: BatteryChargeMode):
         self.battery_charge_mode = mode
@@ -366,6 +384,10 @@ def init_argparse() -> argparse.ArgumentParser:
         help='reduces logging'
     )
     parser.add_argument(
+        '--nominal_start_charge_threshold', metavar='',
+        help='set the default start threshold power override for nominal charge start'
+    )
+    parser.add_argument(
         '--nominal_charge_cutoff', metavar='',
         help='set the default cutoff power override for nominal charge complete'
     )
@@ -380,6 +402,10 @@ def init_argparse() -> argparse.ArgumentParser:
     parser.add_argument(
         '--full_charge_cutoff', metavar='',
         help='set the full power override for full charge complete'
+    )
+    parser.add_argument(
+        '--storage_start_charge_threshold', metavar='',
+        help='set the storage threshold power override for storage charge start'
     )
     parser.add_argument(
         '--storage_charge_cutoff', metavar='',
@@ -605,7 +631,7 @@ async def analyze() -> bool:
     global analyze_first_entry
 
     logging.info(
-        f'>>>>> analyze --> probe_interval_secs: {str(probe_interval_secs)} <<<<<')
+        f'>>>>> analyze --> probe_interval_secs: {str(probe_interval_secs)}, analyze_first_entry: {str(analyze_first_entry)} <<<<<')
     actively_charging = False
 
     def set_actively_charging(plug: BatteryPlug):
@@ -642,10 +668,13 @@ async def analyze() -> bool:
         logging.error(
             f'!!!! DEBUG: analyze(): LOOP - after get_power: plug: {str(plug_name)}')
         logging.info(plug_name + ': ' + str(device_power_consumption))
+        start_threshold_passed = True
         if analyze_first_entry:
             start_threshold_logger.info(
                 plug_name + ': ' + str(device_power_consumption))
-        if plug.threshold_check(device_power_consumption):
+            start_threshold_passed = plug.start_threshold_check(device_power_consumption)
+
+        if start_threshold_passed and plug.threshold_check(device_power_consumption):
             logging.error(
                 f'!!!! DEBUG: analyze(): LOOP - after threshold_check, True: plug: {str(plug_name)}')
             turn_off_plug = plug.check_full_charge() or plug.check_storage_mode()
@@ -670,7 +699,7 @@ async def analyze() -> bool:
 
         if plug.fine_mode_active:
             next_probe_interval_secs = fine_probe_interval_secs
-            # Must handle additional case of trying for full charge cycle, we may NEVER reach the active_charge_battery_power_threshold
+            # Must handle additional case of trying for full charge cycle, we may NEVER reach the active_charge_power_threshold
             if plug.check_full_charge():
                 logging.info(
                     f'{plug_name}: is done with a full charge cycle at: {str(device_power_consumption)}')
@@ -709,10 +738,10 @@ async def analyze_loop(final_stop_time: datetime) -> bool:
     Returns:
         bool: Normal exit indicating success or not
     '''
-    global max_hours_to_run, max_runtime_exceeded
+    global max_hours_to_run, probe_interval_secs, max_runtime_exceeded
     retry_limit = RETRY_LIMIT
     success = False
-    force_log(f'analyze: START')
+    force_log(f'analyze_loop: START')
     while not success and retry_limit > 0:
         # check absolute stop limit
         if datetime.now() > final_stop_time:
@@ -793,6 +822,13 @@ def get_device_thresholds(plug_name: str) -> DeviceThresholds:
     return device_thresholds[DEFAULT_THRESHOLDS_TAG]
 
 
+def check_strings_once(config, tags: list) -> bool:
+    for string in tags:
+        if string not in config:
+            return False
+    return True
+
+
 def verify_config_file(config_file_name: str) -> bool:
     '''
     fails if there is a config file and the [PLUGS] section has a manufacturer that is not in the file
@@ -805,7 +841,7 @@ def verify_config_file(config_file_name: str) -> bool:
     Returns:
         bool: Normal exit indicating success in parsing the config file
     '''
-    global device_thresholds, plug_manufacturer_map, plug_storage_list, plug_full_charge_list
+    global device_thresholds, plug_manufacturer_map, plug_storage_list, plug_full_charge_list, mandatory_config_manufacturer_tags
     try:
         verified = True
         if isfile(config_file_name):
@@ -821,28 +857,39 @@ def verify_config_file(config_file_name: str) -> bool:
                 manufacturers.remove(CONFIG_FULL_CHARGE_SECTION)
             # Extract manufacture specific DeviceThresholds here
             for manufacturer in manufacturers:
-                #  valid manufacturer, validate the three tags
-                if (NOMINAL_THRESHOLD_TAG in config_parser[manufacturer] and
-                    FULL_CHARGE_THRESHOLD_TAG in config_parser[manufacturer] and
-                        COARSE_PROBE_THRESHOLD_MARGIN_TAG in config_parser[manufacturer]):
-                    nominal_charge_battery_power_threshold = float(
-                        config_parser[manufacturer][NOMINAL_THRESHOLD_TAG])
-                    if STORAGE_CHARGE_THRESHOLD_TAG in config_parser[manufacturer]:
-                        storage_charge_battery_power_threshold = float(
-                            config_parser[manufacturer][STORAGE_CHARGE_THRESHOLD_TAG])
+                #  valid manufacturer, validate the mandatory_config_manufacturer_tags
+                if check_strings_once(config_parser[manufacturer], mandatory_config_manufacturer_tags):
+                    nominal_charge_stop_power_threshold = float(
+                        config_parser[manufacturer][NOMINAL_STOP_THRESHOLD_TAG])
+                    if NOMINAL_START_THRESHOLD_TAG in config_parser[manufacturer]:
+                        nominal_charge_start_power_threshold = float(
+                            config_parser[manufacturer][NOMINAL_START_THRESHOLD_TAG])
                     else:
-                        storage_charge_battery_power_threshold = nominal_charge_battery_power_threshold
+                        nominal_charge_start_power_threshold = nominal_charge_stop_power_threshold
+                    if STORAGE_CHARGE_STOP_THRESHOLD_TAG in config_parser[manufacturer]:
+                        storage_charge_stop_power_threshold = float(
+                            config_parser[manufacturer][STORAGE_CHARGE_STOP_THRESHOLD_TAG])
+                    else:
+                        storage_charge_stop_power_threshold = STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT
+                    if STORAGE_CHARGE_START_THRESHOLD_TAG in config_parser[manufacturer]:
+                        storage_charge_start_power_threshold = float(
+                            config_parser[manufacturer][STORAGE_CHARGE_START_THRESHOLD_TAG])
+                    else:
+                        storage_charge_start_power_threshold = storage_charge_stop_power_threshold
+
                     if STORAGE_CHARGE_CYCLE_LIMIT_TAG in config_parser[manufacturer]:
-                        storage_charge_battery_cycle_limit = int(
+                        storage_charge_cycle_limit = int(
                             config_parser[manufacturer][STORAGE_CHARGE_CYCLE_LIMIT_TAG])
                     else:
-                        storage_charge_battery_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
+                        storage_charge_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
                     device_thresholds[manufacturer] = DeviceThresholds(manufacturer,
-                                                                       nominal_charge_battery_power_threshold,
+                                                                       nominal_charge_start_power_threshold,
+                                                                       nominal_charge_stop_power_threshold,
                                                                        float(
                                                                            config_parser[manufacturer][FULL_CHARGE_THRESHOLD_TAG]),
-                                                                       storage_charge_battery_power_threshold,
-                                                                       storage_charge_battery_cycle_limit,
+                                                                       storage_charge_start_power_threshold,
+                                                                       storage_charge_stop_power_threshold,
+                                                                       storage_charge_cycle_limit,
                                                                        float(config_parser[manufacturer][COARSE_PROBE_THRESHOLD_MARGIN_TAG]))
 
             sections = list(config_parser.keys())
@@ -1002,12 +1049,7 @@ def force_log(log: str) -> None:
     start_quiet_mode()
 
 
-def run_battery_controller(nominal_charge_start_battery_power_threshold: float,
-                           nominal_charge_battery_power_threshold: float,
-                           full_charge_battery_power_threshold: float,
-                           storage_charge_start_battery_power_threshold: float,
-                           storage_charge_battery_power_threshold: float,
-                           storage_charge_cycle_limit: int,
+def run_battery_controller(default_thresholds,
                            max_hours_to_run: int,
                            log_file: str,
                            config_file: str,
@@ -1022,9 +1064,11 @@ def run_battery_controller(nominal_charge_start_battery_power_threshold: float,
 
 
     Args:
-        nominal_charge_battery_power_threshold (float): 
-        full_charge_battery_power_threshold (float): 
-        storage_charge_battery_power_threshold (float): 
+        nominal_charge_start_power_threshold (float): 
+        nominal_charge_stop_power_threshold (float): 
+        full_charge_power_threshold (float): 
+        storage_charge_start_power_threshold (float): 
+        storage_charge_stop_power_threshold (float): 
         storage_charge_cycle_limit (int): 
         max_hours_to_run (int): 
         log_file (str): 
@@ -1045,16 +1089,6 @@ def run_battery_controller(nominal_charge_start_battery_power_threshold: float,
             config_file_is_valid = verify_config_file(config_file)
     except Exception as e:
         pass
-    # By here global default values for thresholds are valid so create the DEFAULT one
-    default_thresholds = DeviceThresholds(DEFAULT_THRESHOLDS_TAG,
-                                          nominal_charge_start_battery_power_threshold,
-                                          nominal_charge_battery_power_threshold,
-                                          full_charge_battery_power_threshold,
-                                          storage_charge_start_battery_power_threshold,
-                                          storage_charge_battery_power_threshold,
-                                          storage_charge_cycle_limit,
-                                          COARSE_PROBE_THRESHOLD_MARGIN
-                                          )
     device_thresholds[DEFAULT_THRESHOLDS_TAG] = default_thresholds
 
     logging.info('>>>>> START <<<<<')
@@ -1070,15 +1104,15 @@ def run_battery_controller(nominal_charge_start_battery_power_threshold: float,
     logging.info(f'  ---- config_file: {str(config_file)}')
     logging.info(f'  ---- DEFAULT thresholds')
     logging.info(
-        f'  -------- nominal_charge_start_battery_power_threshold: {str(nominal_charge_start_battery_power_threshold)}')
+        f'  -------- nominal_charge_start_power_threshold: {str(default_thresholds.nominal_charge_start_power_threshold)}')
     logging.info(
-        f'  -------- nominal_charge_battery_power_threshold: {str(nominal_charge_battery_power_threshold)}')
+        f'  -------- nominal_charge_stop_power_threshold: {str(default_thresholds.nominal_charge_stop_power_threshold)}')
     logging.info(
-        f'  -------- full_charge_battery_power_threshold: {str(full_charge_battery_power_threshold)}')
+        f'  -------- full_charge_power_threshold: {str(default_thresholds.full_charge_power_threshold)}')
     logging.info(
-        f'  -------- storage_charge_start_battery_power_threshold: {str(storage_charge_start_battery_power_threshold)}')
+        f'  -------- storage_charge_start_power_threshold: {str(default_thresholds.storage_charge_start_power_threshold)}')
     logging.info(
-        f'  -------- storage_charge_battery_power_threshold: {str(storage_charge_battery_power_threshold)}')
+        f'  -------- storage_charge_stop_power_threshold: {str(default_thresholds.storage_charge_stop_power_threshold)}')
     logging.info(
         f'  -------- storage_charge_cycle_limit: {str(storage_charge_cycle_limit)}')
     if config_file_is_valid:
@@ -1088,13 +1122,17 @@ def run_battery_controller(nominal_charge_start_battery_power_threshold: float,
                 continue
             logging.info(f'  ---- manufacturer: {str(manufacturer)}')
             logging.info(
-                f'  -------- nominal_charge_battery_power_threshold: {str(device_thresholds[manufacturer].nominal_charge_battery_power_threshold)}')
+                f'  -------- nominal_charge_start_power_threshold: {str(device_thresholds[manufacturer].nominal_charge_start_power_threshold)}')
             logging.info(
-                f'  -------- full_charge_battery_power_threshold: {str(device_thresholds[manufacturer].full_charge_battery_power_threshold)}')
+                f'  -------- nominal_charge_stop_power_threshold: {str(device_thresholds[manufacturer].nominal_charge_stop_power_threshold)}')
             logging.info(
-                f'  -------- storage_charge_battery_power_threshold: {str(device_thresholds[manufacturer].storage_charge_battery_power_threshold)}')
+                f'  -------- full_charge_power_threshold: {str(device_thresholds[manufacturer].full_charge_power_threshold)}')
             logging.info(
-                f'  -------- storage_charge_cycle_limit: {str(device_thresholds[manufacturer].storage_charge_battery_cycle_limit)}')
+                f'  -------- storage_charge_start_power_threshold: {str(device_thresholds[manufacturer].storage_charge_start_power_threshold)}')
+            logging.info(
+                f'  -------- storage_charge_stop_power_threshold: {str(device_thresholds[manufacturer].storage_charge_stop_power_threshold)}')
+            logging.info(
+                f'  -------- storage_charge_cycle_limit: {str(device_thresholds[manufacturer].storage_charge_cycle_limit)}')
     start_quiet_mode()
     if len(plug_storage_list) > 0:
         logging.info(f'  ---- plugs in storage mode: ')
@@ -1162,11 +1200,11 @@ def main() -> None:
     global quiet_mode
     global start_threshold_logger
 
-    nominal_charge_start_battery_power_threshold = NOMINAL_CHARGE_START_THRESHOLD_DEFAULT
-    nominal_charge_battery_power_threshold = NOMINAL_CHARGE_THRESHOLD_DEFAULT
-    full_charge_battery_power_threshold = FULL_CHARGE_THRESHOLD_DEFAULT
-    storage_charge_start_battery_power_threshold = STORAGE_CHARGE_START_THRESHOLD_DEFAULT
-    storage_charge_battery_power_threshold = STORAGE_CHARGE_THRESHOLD_DEFAULT
+    nominal_charge_start_power_threshold = NOMINAL_CHARGE_START_THRESHOLD_DEFAULT
+    nominal_charge_stop_power_threshold = NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT
+    full_charge_power_threshold = FULL_CHARGE_THRESHOLD_DEFAULT
+    storage_charge_start_power_threshold = STORAGE_CHARGE_START_THRESHOLD_DEFAULT
+    storage_charge_stop_power_threshold = STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT
     log_file = DEFAULT_LOG_FILE
 
     parser = init_argparse()
@@ -1196,28 +1234,44 @@ def main() -> None:
     force_full_charge = args.force_full_charge
 
     # overrides
+    if args.nominal_start_charge_threshold != None:
+        try:
+            nominal_charge_start_power_threshold = float(
+                args.nominal_start_charge_threshold)
+            logging.info(
+                f'>>>>> OVERRIDE nominal_charge_start_power_threshold: {str(nominal_charge_start_power_threshold)}')
+        except Exception as e:
+            pass
     if args.nominal_charge_cutoff != None:
         try:
-            nominal_charge_battery_power_threshold = float(
+            nominal_charge_stop_power_threshold = float(
                 args.nominal_charge_cutoff)
             logging.info(
-                f'>>>>> OVERRIDE nominal_charge_battery_power_threshold: {str(nominal_charge_battery_power_threshold)}')
+                f'>>>>> OVERRIDE nominal_charge_stop_power_threshold: {str(nominal_charge_stop_power_threshold)}')
         except Exception as e:
             pass
     if args.full_charge_cutoff != None:
         try:
-            full_charge_battery_power_threshold = float(
+            full_charge_power_threshold = float(
                 args.full_charge_cutoff)
             logging.info(
-                f'>>>>> OVERRIDE full_charge_battery_power_threshold: {str(full_charge_battery_power_threshold)}')
+                f'>>>>> OVERRIDE full_charge_power_threshold: {str(full_charge_power_threshold)}')
+        except Exception as e:
+            pass
+    if args.storage_start_charge_threshold != None:
+        try:
+            storage_charge_start_power_threshold = float(
+                args.storage_start_charge_threshold)
+            logging.info(
+                f'>>>>> OVERRIDE storage_charge_start_power_threshold: {str(storage_charge_start_power_threshold)}')
         except Exception as e:
             pass
     if args.storage_charge_cutoff != None:
         try:
-            storage_charge_battery_power_threshold = float(
+            storage_charge_stop_power_threshold = float(
                 args.storage_charge_cutoff)
             logging.info(
-                f'>>>>> OVERRIDE storage_charge_battery_power_threshold: {str(storage_charge_battery_power_threshold)}')
+                f'>>>>> OVERRIDE storage_charge_stop_power_threshold: {str(storage_charge_stop_power_threshold)}')
         except Exception as e:
             pass
     if args.full_charge_repeat_limit != None:
@@ -1250,13 +1304,17 @@ def main() -> None:
             pass
     quiet_mode = args.quiet_mode
 
-    run_battery_controller(nominal_charge_start_battery_power_threshold,
-                           nominal_charge_battery_power_threshold,
-                           full_charge_battery_power_threshold,
-                           storage_charge_start_battery_power_threshold,
-
-                           storage_charge_battery_power_threshold,
-                           storage_charge_cycle_limit,
+    # By here global default values for thresholds are valid so create the DEFAULT one
+    default_thresholds = DeviceThresholds(DEFAULT_THRESHOLDS_TAG,
+                                          nominal_charge_start_power_threshold,
+                                          nominal_charge_stop_power_threshold,
+                                          full_charge_power_threshold,
+                                          storage_charge_start_power_threshold,
+                                          storage_charge_stop_power_threshold,
+                                          storage_charge_cycle_limit,
+                                          COARSE_PROBE_THRESHOLD_MARGIN
+                                          )
+    run_battery_controller(default_thresholds,
                            max_hours_to_run,
                            log_file,
                            args.config_file,

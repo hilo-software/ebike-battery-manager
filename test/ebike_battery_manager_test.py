@@ -229,11 +229,11 @@ def test_storage_mode():
     assert target.device_thresholds['Lectric'].storage_charge_start_power_threshold == target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT
     assert target.device_thresholds['Lectric'].storage_charge_stop_power_threshold == target.STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT
     for plug_name in list(target.plug_manufacturer_map.keys()):
-        print(f'plug_name: {plug_name}')
+        print(f'test_storage_mode:plug_name: {plug_name}')
         if 'rad' in plug_name:
             plug: target.BatteryPlug = target.create_battery_plug(plug_name, any)
             verify_plug(plug, 90.0, 45.0, 115.0, 5.0)
-        print(f'plug_name: {plug_name}')
+        print(f'test_storage_mode:plug_name: {plug_name}')
         if 'rad' in plug_name:
             strip_plug: target.BatteryStripPlug = target.create_battery_strip_plug(plug_name, any, 0)
             verify_plug(strip_plug, 90.0, 45.0, 115.0, 5.0)
@@ -251,7 +251,6 @@ def test_full_charge_mode():
     assert len(target.plug_storage_list) == 2
     assert len(target.plug_full_charge_list) == 1
     assert 'rad_battery_1' in target.plug_full_charge_list
-
 
 def test_get_device_thresholds():
     set_sample_thresholds()
@@ -336,7 +335,32 @@ def test_delete_plugs():
     assert len(battery_plug_list) == starting_len
 
 def test_start_threshold_check():
-    pass
+    reset_device_thresholds()
+    result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
+    assert result == True
+    plugs = []
+    for plug_name in list(target.plug_manufacturer_map.keys()):
+        if 'rad' in plug_name:
+            plug: target.BatteryPlug = target.create_battery_plug(plug_name, any)
+            verify_plug(plug, 90.0, 45.0, 115.0, 5.0)
+            plugs.append(plug)
+    plug = plugs[0]
+    result = plug.start_threshold_check(50.0)
+    assert result == False
+    result = plug.start_threshold_check(91.0)
+    assert result == True
+    plug.set_battery_charge_mode(target.BatteryChargeMode.FULL)
+    result = plug.start_threshold_check(50.0)
+    assert result == True
+    result = plug.start_threshold_check(91.0)
+    assert result == True
+    plug.set_battery_charge_mode(target.BatteryChargeMode.STORAGE)
+    result = plug.start_threshold_check(50.0)
+    assert result == False
+    result = plug.start_threshold_check(91.0)
+    assert result == False
+    result = plug.start_threshold_check(116.0)
+    assert result == True
 
 def test_threshold_check():
     nominal_thresholds = DeviceThresholds(rad_thresholds.manufacturer_name,

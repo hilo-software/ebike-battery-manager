@@ -214,7 +214,7 @@ class BatteryPlug():
     def start_threshold_check(self, device_power_consumption: float) -> bool:
         if self.battery_charge_mode == BatteryChargeMode.FULL:
             return True
-        return device_power_consumption < self.get_start_power_threshold()
+        return device_power_consumption > self.get_start_power_threshold()
 
     def threshold_check(self, device_power_consumption: float) -> bool:
         '''

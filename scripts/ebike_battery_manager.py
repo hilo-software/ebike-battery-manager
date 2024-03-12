@@ -47,7 +47,10 @@ COARSE_PROBE_INTERVAL_SECS = 10 * 60
 FULL_CHARGE_REPEAT_LIMIT = 3
 PLUG_RETRY_SETUP_LIMIT = 3
 
-mandatory_config_manufacturer_tags = [NOMINAL_STOP_THRESHOLD_TAG, FULL_CHARGE_THRESHOLD_TAG, COARSE_PROBE_THRESHOLD_MARGIN_TAG]
+# mandatory_config_manufacturer_tags = [FULL_CHARGE_THRESHOLD_TAG, COARSE_PROBE_THRESHOLD_MARGIN_TAG]
+# one_of_config_manufacturer_threshold_tags = [NOMINAL_START_THRESHOLD_TAG, NOMINAL_STOP_THRESHOLD_TAG]
+MANDATORY_CONFIG_MANUFACTURER_TAGS = [FULL_CHARGE_THRESHOLD_TAG, COARSE_PROBE_THRESHOLD_MARGIN_TAG]
+ONE_OF_CONFIG_MANUFACTURER_TAGS = [NOMINAL_START_THRESHOLD_TAG, NOMINAL_STOP_THRESHOLD_TAG]
 
 full_charge_repeat_limit = FULL_CHARGE_REPEAT_LIMIT
 fine_probe_interval_secs = 5 * 60
@@ -822,11 +825,18 @@ def get_device_thresholds(plug_name: str) -> DeviceThresholds:
     return device_thresholds[DEFAULT_THRESHOLDS_TAG]
 
 
-def check_strings_once(config, tags: list) -> bool:
-    for string in tags:
+def check_required_config_strings(config, required_tags: list, one_of_option_tag: list) -> bool:
+    for string in required_tags:
         if string not in config:
             return False
-    return True
+    if one_of_option_tag is None or len(one_of_option_tag) == 0:
+        return True
+    found_one_of_tag = False
+    for string in one_of_option_tag:
+        if string in config:
+            found_one_of_tag = True
+            break
+    return found_one_of_tag
 
 
 def verify_config_file(config_file_name: str) -> bool:
@@ -841,7 +851,7 @@ def verify_config_file(config_file_name: str) -> bool:
     Returns:
         bool: Normal exit indicating success in parsing the config file
     '''
-    global device_thresholds, plug_manufacturer_map, plug_storage_list, plug_full_charge_list, mandatory_config_manufacturer_tags
+    global device_thresholds, plug_manufacturer_map, plug_storage_list, plug_full_charge_list
     try:
         verified = True
         if isfile(config_file_name):
@@ -858,14 +868,22 @@ def verify_config_file(config_file_name: str) -> bool:
             # Extract manufacture specific DeviceThresholds here
             for manufacturer in manufacturers:
                 #  valid manufacturer, validate the mandatory_config_manufacturer_tags
-                if check_strings_once(config_parser[manufacturer], mandatory_config_manufacturer_tags):
-                    nominal_charge_stop_power_threshold = float(
-                        config_parser[manufacturer][NOMINAL_STOP_THRESHOLD_TAG])
+                if check_required_config_strings(config_parser[manufacturer], MANDATORY_CONFIG_MANUFACTURER_TAGS, ONE_OF_CONFIG_MANUFACTURER_TAGS):
                     if NOMINAL_START_THRESHOLD_TAG in config_parser[manufacturer]:
                         nominal_charge_start_power_threshold = float(
                             config_parser[manufacturer][NOMINAL_START_THRESHOLD_TAG])
-                    else:
+                        if NOMINAL_STOP_THRESHOLD_TAG in config_parser[manufacturer]:
+                            nominal_charge_stop_power_threshold = float(
+                                config_parser[manufacturer][NOMINAL_STOP_THRESHOLD_TAG])
+                        else:
+                            nominal_charge_stop_power_threshold = nominal_charge_start_power_threshold
+                    elif NOMINAL_STOP_THRESHOLD_TAG in config_parser[manufacturer]:
+                        nominal_charge_stop_power_threshold = float(
+                            config_parser[manufacturer][NOMINAL_STOP_THRESHOLD_TAG])
                         nominal_charge_start_power_threshold = nominal_charge_stop_power_threshold
+                    else:
+                        nominal_charge_start_power_threshold = NOMINAL_CHARGE_START_THRESHOLD_DEFAULT
+                        nominal_charge_stop_power_threshold = NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT
                     if STORAGE_CHARGE_STOP_THRESHOLD_TAG in config_parser[manufacturer]:
                         storage_charge_stop_power_threshold = float(
                             config_parser[manufacturer][STORAGE_CHARGE_STOP_THRESHOLD_TAG])

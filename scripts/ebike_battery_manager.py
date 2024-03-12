@@ -671,13 +671,17 @@ async def analyze() -> bool:
         logging.error(
             f'!!!! DEBUG: analyze(): LOOP - after get_power: plug: {str(plug_name)}')
         logging.info(plug_name + ': ' + str(device_power_consumption))
-        start_threshold_passed = True
         if analyze_first_entry:
             start_threshold_logger.info(
                 plug_name + ': ' + str(device_power_consumption))
-            start_threshold_passed = plug.start_threshold_check(device_power_consumption)
+            if not plug.start_threshold_check(device_power_consumption):
+                start_threshold_logger.info(
+                    f'!!!! DEBUG: analyze(): LOOP - start_threshold_check() is False, plug: {str(plug_name)}')
+                await plug.turn_off()
+                plugs_to_delete.append(plug)
+                continue
 
-        if start_threshold_passed and plug.threshold_check(device_power_consumption):
+        if plug.threshold_check(device_power_consumption):
             logging.error(
                 f'!!!! DEBUG: analyze(): LOOP - after threshold_check, True: plug: {str(plug_name)}')
             turn_off_plug = plug.check_full_charge() or plug.check_storage_mode()
@@ -692,7 +696,7 @@ async def analyze() -> bool:
             set_actively_charging(plug)
             continue
         logging.error(
-            f'!!!! DEBUG: analyze(): LOOP - after threshold_check, False: plug: {str(plug_name)}')
+            f'!!!! DEBUG: analyze(): LOOP - after threshold_check(), False: plug: {str(plug_name)}')
 
         # By here check if we should switch to fine_probe_interval to detect charged state sooner
         if not plug.fine_mode_active and next_probe_interval_secs > fine_probe_interval_secs and device_power_consumption < plug.get_coarse_probe_threshold():

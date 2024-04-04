@@ -637,9 +637,9 @@ async def analyze() -> bool:
         f'>>>>> analyze --> probe_interval_secs: {str(probe_interval_secs)}, analyze_first_entry: {str(analyze_first_entry)} <<<<<')
     actively_charging = False
 
-    def set_actively_charging(plug: BatteryPlug):
-        logging.error(
-            f'!!!! DEBUG: set_actively_charging(): plug: {str(plug.name)}')
+    def set_actively_charging(plug: BatteryPlug) -> None:
+        # logging.error(
+        #     f'!!!! DEBUG: set_actively_charging(): plug: {str(plug.name)}')
         nonlocal actively_charging
         actively_charging = True
         logging.info(f'{plug.name} is actively_charging')
@@ -652,51 +652,46 @@ async def analyze() -> bool:
     next_probe_interval_secs = COARSE_PROBE_INTERVAL_SECS
     plugs_to_delete = []
 
+    async def turn_off_and_delete_plug(plug) -> None:
+        await plug.turn_off()
+        plugs_to_delete.append(plug)
+
+
     for plug in battery_plug_list:
         plug_name = plug.name
-        logging.error(
-            f'!!!! DEBUG: analyze(): LOOPTOP: plug: {str(plug_name)}')
         await plug.update()
-        logging.error(
-            f'!!!! DEBUG: analyze(): LOOP - after update: plug: {str(plug_name)}')
 
         if not plug.is_on():
             logging.info(plug_name + ' is OFF')
             plugs_to_delete.append(plug)
             continue
-        logging.error(
-            f'!!!! DEBUG: analyze(): LOOP - after is_on: plug: {str(plug_name)}')
 
         device_power_consumption = plug.get_power()
-        logging.error(
-            f'!!!! DEBUG: analyze(): LOOP - after get_power: plug: {str(plug_name)}')
         logging.info(plug_name + ': ' + str(device_power_consumption))
         if analyze_first_entry:
             start_threshold_logger.info(
                 plug_name + ': ' + str(device_power_consumption))
             if not plug.start_threshold_check(device_power_consumption):
                 start_threshold_logger.info(
-                    f'!!!! DEBUG: analyze(): LOOP - start_threshold_check() is False, plug: {str(plug_name)}')
-                await plug.turn_off()
-                plugs_to_delete.append(plug)
+                    f'!!!! DEBUG: analyze(): LOOP - start_threshold_check() is False, plug: {str(plug_name)}, power: {str(device_power_consumption)}')
+                await turn_off_and_delete_plug(plug)
                 continue
+            else:
+                start_threshold_logger.info(
+                    f'!!!! DEBUG: analyze(): LOOP - start_threshold_check() is True, plug: {str(plug_name)}, power: {str(device_power_consumption)}')
+
 
         if plug.threshold_check(device_power_consumption):
-            logging.error(
-                f'!!!! DEBUG: analyze(): LOOP - after threshold_check, True: plug: {str(plug_name)}')
             turn_off_plug = plug.check_full_charge() or plug.check_storage_mode()
             if turn_off_plug:
                 logging.info(
                     f'{plug_name}: (threshold_check) has no battery present or it may be fully charged: {str(device_power_consumption)}')
-                await plug.turn_off()
-                plugs_to_delete.append(plug)
+                await turn_off_and_delete_plug(plug)
                 continue
             plug.fine_mode_active = True
             next_probe_interval_secs = fine_probe_interval_secs
             set_actively_charging(plug)
             continue
-        logging.error(
-            f'!!!! DEBUG: analyze(): LOOP - after threshold_check(), False: plug: {str(plug_name)}')
 
         # By here check if we should switch to fine_probe_interval to detect charged state sooner
         if not plug.fine_mode_active and next_probe_interval_secs > fine_probe_interval_secs and device_power_consumption < plug.get_coarse_probe_threshold():
@@ -710,13 +705,10 @@ async def analyze() -> bool:
             if plug.check_full_charge():
                 logging.info(
                     f'{plug_name}: is done with a full charge cycle at: {str(device_power_consumption)}')
-                await plug.turn_off()
-                plugs_to_delete.append(plug)
+                await turn_off_and_delete_plug(plug)
                 continue
 
         set_actively_charging(plug)
-        logging.error(
-            f'!!!! DEBUG: analyze(): LOOP BOTTOM: plug: {str(plug_name)}')
 
     analyze_first_entry = False
     delete_plugs(plugs_to_delete)
@@ -1066,9 +1058,11 @@ def stop_quiet_mode() -> None:
 
 
 def force_log(log: str) -> None:
-    stop_quiet_mode()
+    log_level = logging.getLogger("").getEffectiveLevel()
+    # stop_quiet_mode()
     logging.info(log)
-    start_quiet_mode()
+    logging.getLogger("").setLevel(log_level)
+    # start_quiet_mode()
 
 
 def run_battery_controller(default_thresholds,

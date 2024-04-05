@@ -133,6 +133,8 @@ class BatteryPlug():
     storage_charge_cycle_limit: int
     config: DeviceConfig
     battery_charge_mode: BatteryChargeMode
+    battery_charge_start_time: datetime
+    battery_charge_stop_time: datetime
 
     def __init__(self, name: str, device: SmartDevice, max_cycles_in_fine_mode: int, config: DeviceConfig):
         global max_hours_to_run
@@ -148,10 +150,8 @@ class BatteryPlug():
         self.max_cycles_in_fine_mode = max_cycles_in_fine_mode
         self.config = config
         self.battery_charge_mode = BatteryChargeMode.NOMINAL
-        # We use nax_hours_to_run since this global can be overridden by a command line arg
-        # Note that charger_max_hours_to_run is a per BatteryPlug value and if the 
-        # charger_amp_hour_rate AND battery_amp_hour_capacity are non-zero in the config file it will be calculated
-        self.charger_max_hours_to_run = max_hours_to_run
+        self.battery_charge_start_time = datetime.now()
+        self.battery_charge_stop_time = self.battery_charge_start_time + timedelta(hours=config.charger_max_hours_to_run)
 
     async def update(self):
         await self.device.update()

@@ -16,7 +16,7 @@ LECTRIC_STORAGE_STOP_THRESHOLD = 80.0
 LECTRIC_FULL_CHARGE_THRESHOLD = 4.0
 LECTRIC_COARSE_MARGIN = 15.0
 RAD_CHARGER_AMP_HOUR_RATE = 2.0
-RAD_BATTERY_AMP_HOUR_CAPACITY = 14.4
+RAD_BATTERY_AMP_HOUR_CAPACITY = 14.0
 LECTRIC_CHARGER_AMP_HOUR_RATE = 2.0
 LECTRIC_BATTERY_AMP_HOUR_CAPACITY = 14.4
 RAD_BATTERY_1 = 'rad_battery_1'
@@ -220,6 +220,9 @@ def setup_sample_config():
 
 def verify_plug(plug: BatteryPlug, start_nominal: float, stop_nominal: float, storage: float, full: float) -> None:
     plug_name = plug.name
+    time_difference = plug.battery_charge_stop_time - plug.battery_charge_start_time
+    hours_difference = ceil(time_difference.total_seconds() / 3600)
+    assert(hours_difference == plug.config.charger_max_hours_to_run)    
     if plug_name in target.plug_storage_list:
         assert plug.battery_charge_mode == target.BatteryChargeMode.STORAGE
         assert plug.config.storage_charge_stop_power_threshold == storage

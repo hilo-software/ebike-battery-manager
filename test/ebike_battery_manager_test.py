@@ -4,6 +4,7 @@ import asyncio
 from kasa import SmartDevice
 from unittest.mock import MagicMock, patch, AsyncMock
 from datetime import datetime
+from math import ceil
 import time
 import configparser
 
@@ -14,57 +15,90 @@ LECTRIC_STORAGE_START_THRESHOLD = 90.0
 LECTRIC_STORAGE_STOP_THRESHOLD = 80.0
 LECTRIC_FULL_CHARGE_THRESHOLD = 4.0
 LECTRIC_COARSE_MARGIN = 15.0
+RAD_CHARGER_AMP_HOUR_RATE = 2.0
+RAD_BATTERY_AMP_HOUR_CAPACITY = 14.4
+LECTRIC_CHARGER_AMP_HOUR_RATE = 2.0
+LECTRIC_BATTERY_AMP_HOUR_CAPACITY = 14.4
 RAD_BATTERY_1 = 'rad_battery_1'
 RAD_MANUFACTURER_NAME = 'Rad'
 
 target = __import__("scripts.ebike_battery_manager")
 target = target.ebike_battery_manager
 battery_plug_list = target.battery_plug_list
-DeviceThresholds = target.DeviceThresholds
+DeviceConfig = target.DeviceConfig
 BatteryPlug = target.BatteryPlug
 BatteryStripPlug = target.BatteryStripPlug
 max_cycles_in_fine_mode = target.max_cycles_in_fine_mode
-rad_thresholds: DeviceThresholds
-lectric_thresholds: DeviceThresholds
+default_config = target.default_config
+rad_config: DeviceConfig
+lectric_config: DeviceConfig
 
 @pytest.fixture(scope="session", autouse=True)
 def execute_before_any_test():
     
-    global rad_thresholds, battery_plug_list
+    global rad_config, battery_plug_list
     
     # your setup code goes here, executed ahead of first test
-    rad_thresholds = DeviceThresholds('Rad',
-                                      target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT,
-                                      target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT,
-                                      target.FULL_CHARGE_THRESHOLD_DEFAULT,
-                                      target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT,
-                                      target.STORAGE_CHARGE_STOP_THRESHOLD_TAG,
+    rad_config = DeviceConfig('Rad',
+                                  target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT,
+                                  target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT,
+                                  target.FULL_CHARGE_THRESHOLD_DEFAULT,
+                                  target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT,
+                                  target.STORAGE_CHARGE_STOP_THRESHOLD_TAG,
+                                  target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
+                                  target.COARSE_PROBE_THRESHOLD_MARGIN,
+                                  RAD_CHARGER_AMP_HOUR_RATE,
+                                  RAD_BATTERY_AMP_HOUR_CAPACITY,
+                                  ceil(RAD_BATTERY_AMP_HOUR_CAPACITY /
+                                       RAD_CHARGER_AMP_HOUR_RATE)
+                                  )
+    lectric_config = DeviceConfig('Lectric',
+                                      LECTRIC_NOMINAL_START_THRESHOLD,
+                                      LECTRIC_NOMINAL_STOP_THRESHOLD,
+                                      LECTRIC_FULL_CHARGE_THRESHOLD,
+                                      LECTRIC_STORAGE_START_THRESHOLD,
+                                      LECTRIC_STORAGE_STOP_THRESHOLD,
                                       target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
-                                      target.COARSE_PROBE_THRESHOLD_MARGIN
+                                      LECTRIC_COARSE_MARGIN,
+                                      LECTRIC_CHARGER_AMP_HOUR_RATE,
+                                      LECTRIC_BATTERY_AMP_HOUR_CAPACITY,
+                                      ceil(LECTRIC_BATTERY_AMP_HOUR_CAPACITY /
+                                           LECTRIC_CHARGER_AMP_HOUR_RATE)
                                       )
-    lectric_thresholds = DeviceThresholds('Lectric',
-                                          LECTRIC_NOMINAL_START_THRESHOLD,
-                                          LECTRIC_NOMINAL_STOP_THRESHOLD,
-                                          LECTRIC_FULL_CHARGE_THRESHOLD,
-                                          LECTRIC_STORAGE_START_THRESHOLD,
-                                          LECTRIC_STORAGE_STOP_THRESHOLD,
-                                          target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
-                                          LECTRIC_COARSE_MARGIN)
-    target.device_config['Rad'] = rad_thresholds
-    target.device_config['Lectric'] = lectric_thresholds
-    default_thresholds = target.DeviceThresholds(target.DEFAULT_CONFIG_TAG,
-                                                 target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT,
-                                                 target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT,
-                                                 target.FULL_CHARGE_THRESHOLD_DEFAULT,
-                                                 target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT,
-                                                 target.STORAGE_CHARGE_STOP_THRESHOLD_TAG,
-                                                 target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
-                                                 target.COARSE_PROBE_THRESHOLD_MARGIN
-                                                 )
-    target.device_config[target.DEFAULT_CONFIG_TAG] = default_thresholds
+    target.device_config['Rad'] = rad_config
+    target.device_config['Lectric'] = lectric_config
+    create_default_device_config()
+    # target.device_config[target.DEFAULT_CONFIG_TAG] = DeviceConfig(
+    #     target.DEFAULT_CONFIG_TAG,
+    #     target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT,
+    #     target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT,
+    #     target.FULL_CHARGE_THRESHOLD_DEFAULT,
+    #     target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT,
+    #     target.STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT,
+    #     target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
+    #     target.COARSE_PROBE_THRESHOLD_MARGIN,
+    #     0.0,
+    #     0.0,
+    #     target.DEFAULT_MAX_RUNTIME_HOURS
+    # )
 
-    battery_plug_list.append(BatteryPlug('battery_1', target.SmartDevice('127.0.0.1'), max_cycles_in_fine_mode, rad_thresholds))
-    battery_plug_list.append(BatteryPlug('battery_2', target.SmartDevice('127.0.0.1'), max_cycles_in_fine_mode, rad_thresholds))
+    battery_plug_list.append(BatteryPlug('battery_1', target.SmartDevice('127.0.0.1'), max_cycles_in_fine_mode, rad_config))
+    battery_plug_list.append(BatteryPlug('battery_2', target.SmartDevice('127.0.0.1'), max_cycles_in_fine_mode, rad_config))
+
+def create_default_device_config() -> None:
+    target.device_config[target.DEFAULT_CONFIG_TAG] = DeviceConfig(
+        target.DEFAULT_CONFIG_TAG,
+        target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT,
+        target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT,
+        target.FULL_CHARGE_THRESHOLD_DEFAULT,
+        target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT,
+        target.STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT,
+        target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
+        target.COARSE_PROBE_THRESHOLD_MARGIN,
+        0.0,
+        0.0,
+        target.DEFAULT_MAX_RUNTIME_HOURS
+    )
 
 def test_fixture_init():
     print(f'fake, battery_plug_list')
@@ -74,16 +108,8 @@ def test_fixture_init():
 def reset_device_config():
     target.device_config.clear()
     target.plug_manufacturer_map.clear()
-    default_thresholds = target.DeviceThresholds(target.DEFAULT_CONFIG_TAG,
-                                                 target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT,
-                                                 target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT,
-                                                 target.FULL_CHARGE_THRESHOLD_DEFAULT,
-                                                 target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT,
-                                                 target.STORAGE_CHARGE_STOP_THRESHOLD_TAG,
-                                                 target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
-                                                 target.COARSE_PROBE_THRESHOLD_MARGIN
-                                                 )
-    target.device_config[target.DEFAULT_CONFIG_TAG] = default_thresholds
+    create_default_device_config()
+    # target.device_config[target.DEFAULT_CONFIG_TAG] = target.default_config
 
 def set_sample_thresholds():
     reset_device_config()
@@ -196,7 +222,7 @@ def verify_plug(plug: BatteryPlug, start_nominal: float, stop_nominal: float, st
     plug_name = plug.name
     if plug_name in target.plug_storage_list:
         assert plug.battery_charge_mode == target.BatteryChargeMode.STORAGE
-        assert plug.thresholds.storage_charge_stop_power_threshold == storage
+        assert plug.config.storage_charge_stop_power_threshold == storage
         assert plug.get_active_charge_battery_power_threshold() == storage
         assert plug.check_storage_mode() == False
         assert plug.charge_threshold_passed == False
@@ -267,18 +293,18 @@ def test_create_battery_plug():
     set_sample_thresholds()
     plug = target.create_battery_plug(RAD_BATTERY_1, any)
     assert plug.name == RAD_BATTERY_1
-    assert plug.thresholds.manufacturer_name == RAD_MANUFACTURER_NAME
+    assert plug.config.manufacturer_name == RAD_MANUFACTURER_NAME
 
 def test_create_battery_strip_plug():
     set_sample_thresholds()
     plug = target.create_battery_strip_plug(RAD_BATTERY_1, any, 1)
     assert plug.name == RAD_BATTERY_1
     assert plug.plug_index == 1
-    assert plug.thresholds.manufacturer_name == RAD_MANUFACTURER_NAME
+    assert plug.config.manufacturer_name == RAD_MANUFACTURER_NAME
 
 def test_check_full_charge():
     test_max_cycles_in_fine_mode = 3
-    plug = BatteryPlug('test_check_full_charge_battery_name', any, test_max_cycles_in_fine_mode, rad_thresholds)
+    plug = BatteryPlug('test_check_full_charge_battery_name', any, test_max_cycles_in_fine_mode, rad_config)
     result = plug.check_full_charge()
     assert result == False
     plug.charge_threshold_passed = True
@@ -305,7 +331,7 @@ def test_check_full_charge():
             assert plug.max_cycles_in_fine_mode <= 0
     assert result_true_ct == 1
     # reset the plug state
-    plug = BatteryPlug('test_check_full_charge_battery_name_fine_mode', any, test_max_cycles_in_fine_mode, rad_thresholds)
+    plug = BatteryPlug('test_check_full_charge_battery_name_fine_mode', any, test_max_cycles_in_fine_mode, rad_config)
     plug.fine_mode_active = True
     plug.charge_threshold_passed = True
     plug.set_battery_charge_mode(target.BatteryChargeMode.FULL)
@@ -322,17 +348,17 @@ def test_check_full_charge():
     target.force_full_charge = False
 
 def test_delete_plugs():
-    plug = BatteryPlug('test_delete_plugs_battery_name', any, max_cycles_in_fine_mode, rad_thresholds)
-    strip_plug = BatteryStripPlug('test_delete_plugs_battery_name', any, 0, max_cycles_in_fine_mode, rad_thresholds)
-    starting_len = len(battery_plug_list)
+    plug = BatteryPlug('test_delete_plugs_battery_name', any, max_cycles_in_fine_mode, rad_config)
+    strip_plug = BatteryStripPlug('test_delete_plugs_battery_name', any, 0, max_cycles_in_fine_mode, rad_config)
+    battery_plug_list = []
     battery_plug_list.append(plug)
     battery_plug_list.append(strip_plug)
-    assert len(battery_plug_list) == starting_len + 2
+    assert len(battery_plug_list) == 2
     plugs_to_delete = []
     plugs_to_delete.append(strip_plug)
     plugs_to_delete.append(plug)
-    target.delete_plugs(plugs_to_delete)
-    assert len(battery_plug_list) == starting_len
+    target.delete_plugs(battery_plug_list, plugs_to_delete)
+    assert len(battery_plug_list) == 0
 
 def test_start_threshold_check():
     reset_device_config()
@@ -363,14 +389,17 @@ def test_start_threshold_check():
     assert result == True
 
 def test_threshold_check():
-    nominal_thresholds = DeviceThresholds(rad_thresholds.manufacturer_name,
-                                          rad_thresholds.nominal_charge_start_power_threshold,
-                                          rad_thresholds.nominal_charge_stop_power_threshold,
-                                          rad_thresholds.full_charge_power_threshold,
-                                          rad_thresholds.storage_charge_start_power_threshold,
-                                          rad_thresholds.storage_charge_stop_power_threshold,
-                                          rad_thresholds.storage_charge_cycle_limit,
-                                          20)
+    nominal_thresholds = DeviceConfig(rad_config.manufacturer_name,
+                                          rad_config.nominal_charge_start_power_threshold,
+                                          rad_config.nominal_charge_stop_power_threshold,
+                                          rad_config.full_charge_power_threshold,
+                                          rad_config.storage_charge_start_power_threshold,
+                                          rad_config.storage_charge_stop_power_threshold,
+                                          rad_config.storage_charge_cycle_limit,
+                                          20,
+                                          rad_config.charger_amp_hour_rate,
+                                          rad_config.battery_amp_hour_capacity,
+                                          rad_config.charger_max_hours_to_run)
     plug = BatteryPlug('test_battery_name', any, max_cycles_in_fine_mode, nominal_thresholds)
     assert plug.charge_threshold_passed == False
     result = plug.threshold_check(91.0)
@@ -382,15 +411,18 @@ def test_threshold_check():
     assert result == True
     plug.charge_threshold_passed = False
     plug.set_battery_charge_mode(target.BatteryChargeMode.FULL)
-    full_charge_thresholds = DeviceThresholds(rad_thresholds.manufacturer_name,
-                                          rad_thresholds.nominal_charge_start_power_threshold,
-                                          rad_thresholds.nominal_charge_stop_power_threshold,
-                                          rad_thresholds.full_charge_power_threshold,
-                                          rad_thresholds.storage_charge_start_power_threshold,
-                                          rad_thresholds.storage_charge_stop_power_threshold,
-                                          rad_thresholds.storage_charge_cycle_limit,
-                                          20)
-    plug.thresholds = full_charge_thresholds
+    full_charge_thresholds = DeviceConfig(rad_config.manufacturer_name,
+                                          rad_config.nominal_charge_start_power_threshold,
+                                          rad_config.nominal_charge_stop_power_threshold,
+                                          rad_config.full_charge_power_threshold,
+                                          rad_config.storage_charge_start_power_threshold,
+                                          rad_config.storage_charge_stop_power_threshold,
+                                          rad_config.storage_charge_cycle_limit,
+                                          20,
+                                          rad_config.charger_amp_hour_rate,
+                                          rad_config.battery_amp_hour_capacity,
+                                          rad_config.charger_max_hours_to_run)
+    plug.config = full_charge_thresholds
     result = plug.threshold_check(89.0)
     assert result == False
     result = plug.threshold_check(89.0)

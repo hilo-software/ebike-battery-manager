@@ -41,9 +41,9 @@ Three cutoff thresholds are supported.
 - A storage cutoff threshold behaves identically to the nominal cutoff but allows a lower cutoff to hold the battery at a lower charge percentage which is desirable in Li Ion batteries that will be stored unused for an extended period of time.
 ## Disclaimer
 - The owner of the script is not an electrical power engineer but is a software engineer working at all levels of software including embedded systems close to the metal. 
-- We only observe the power draw that the chargers are pulling at the smart plug.
-- We assume that power draw is related to the amount of amperage the charger is adding to the battery.
-- We assume that as the battery approaches full charge, the charger draws correspondingly less power establishing a known power drawdown curve that is correlated with the actual charger as it charges the battery, allowing the script to manage the charger(s) by controlling the TP-Link smart plug(s) on/off state. 
+- The script observes the power draw that the chargers are pulling at the smart plug.
+- The script assumes that power draw is related to the amount of amperage the charger is adding to the battery.
+- The script assumes that as the battery approaches full charge, the charger draws correspondingly less power establishing a known power drawdown curve that is correlated with the actual charger as it charges the battery, allowing the script to manage the charger(s) by controlling the TP-Link smart plug(s) on/off state. 
 - This was observed to be the case with Rad Power and Lectric EBike batteries and chargers.
 - This is a correlational approach and results will be approximate since we do not see the actual battery charge voltage in real time.
 ## Compatibility
@@ -51,7 +51,7 @@ Three cutoff thresholds are supported.
 - Lectric xpedition packs and chargers are also profiled.
 - Currently only 48V systems have been profiled.
 - The script provides command line control to allow moderate customization of parameters.
-    - You can always directly modify the script as well.
+    - You can always directly modify the Python script as well.
 - A configuration file is also allowed which provides more extensive customization.  See sample_ebike_battery_manager.config
 ## Setup
 ### TP Link Plugs
@@ -87,7 +87,7 @@ Three cutoff thresholds are supported.
     - This particular approach expects a Google app password: https://support.google.com/mail/answer/185833?hl=en-GB
 - smtp.sendmail is the underlying mechanism so different smtp servers can be used.  Modify as needed.
 ## Usage
-- The script handles a daily charge scenario and depends on outside support for continuous daily runs.
+- The script handles a daily charge scenario and depends on outside support such as crontab for scheduling runs over time.
 - Users should keep same battery in each plug/charger if possible and at a minimum need to match battery and chargers from the same manufacturer.
 ### Command line arguments
 
@@ -132,12 +132,15 @@ options:
 #### Configuration Sections
 - The configuration files will have a section named for each manufacturer with the appropriate threshold power cutoffs.
     - Mandatory fields
-        - nominal_charged_battery_power_threshold
-        - fully_charged_battery_power_threshold
+        - nominal_charge_stop_power_threshold
+        - full_charge_power_threshold
         - coarse_probe_threshold_margin
     - Optional field(s)
-        - storage_charged_battery_power_threshold
-            - if omitted, then the nominal_charged_battery_power_threshold will be used in its place
+        - nominal_charge_start_power_threshold
+            - This allows fine tuning the decision to start charging in nominal mode and can be used to reduce repeated small charges.
+            - if omitted, the nominal_charge_stop_power_threshold will be used
+        - storage_charge_stop_power_threshold
+            - if omitted, then the nominal_charge_stop_power_threshold will be used in its place
 - The [Plugs] section is used to match plug_names with manufacturer section names.
 - The [Storage] section is optional and when present lists plug_names that are to be in Storage mode
     - The Storage section has the highest precedence for plug charging modes.  If a plug_name is present in both this Storage section and the FullCharge section below, the plug_name will charge in Storage mode.

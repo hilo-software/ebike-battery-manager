@@ -46,6 +46,7 @@ RETRY_LIMIT = 3
 COARSE_PROBE_INTERVAL_SECS = 10 * 60
 FULL_CHARGE_REPEAT_LIMIT = 3
 PLUG_RETRY_SETUP_LIMIT = 3
+DEFAULT_MAX_RUNTIME_HOURS = 12
 
 # mandatory_config_manufacturer_tags = [FULL_CHARGE_THRESHOLD_TAG, COARSE_PROBE_THRESHOLD_MARGIN_TAG]
 # one_of_config_manufacturer_threshold_tags = [NOMINAL_START_THRESHOLD_TAG, NOMINAL_STOP_THRESHOLD_TAG]
@@ -57,7 +58,7 @@ fine_probe_interval_secs = 5 * 60
 probe_interval_secs = COARSE_PROBE_INTERVAL_SECS
 max_cycles_in_fine_mode = 20
 force_full_charge = False
-max_hours_to_run = 12
+max_hours_to_run = DEFAULT_MAX_RUNTIME_HOURS
 storage_charge_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
 
 battery_plug_list = []
@@ -125,8 +126,12 @@ class BatteryPlug():
     storage_charge_cycle_limit: int
     thresholds: DeviceThresholds
     battery_charge_mode: BatteryChargeMode
+    charger_amp_hour_rate: float
+    battery_amp_hour_capacity: float
+    charger_max_hours_to_run: int
 
     def __init__(self, name: str, device: SmartDevice, max_cycles_in_fine_mode: int, thresholds: DeviceThresholds):
+        global max_hours_to_run
         self.name = name
         self.device = device
         self.battery_found = False
@@ -139,6 +144,12 @@ class BatteryPlug():
         self.max_cycles_in_fine_mode = max_cycles_in_fine_mode
         self.thresholds = thresholds
         self.battery_charge_mode = BatteryChargeMode.NOMINAL
+        self.charger_amp_hour_rate = 0.0
+        self.battery_amp_hour_capacity = 0.0
+        # We use nax_hours_to_run since this global can be overridden by a command line arg
+        # Note that charger_max_hours_to_run is a per BatteryPlug value and if the 
+        # charger_amp_hour_rate AND battery_amp_hour_capacity are non-zero in the config file it will be calculated
+        self.charger_max_hours_to_run = max_hours_to_run
 
     async def update(self):
         await self.device.update()

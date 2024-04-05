@@ -50,9 +50,9 @@ def execute_before_any_test():
                                           LECTRIC_STORAGE_STOP_THRESHOLD,
                                           target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
                                           LECTRIC_COARSE_MARGIN)
-    target.device_thresholds['Rad'] = rad_thresholds
-    target.device_thresholds['Lectric'] = lectric_thresholds
-    default_thresholds = target.DeviceThresholds(target.DEFAULT_THRESHOLDS_TAG,
+    target.device_config['Rad'] = rad_thresholds
+    target.device_config['Lectric'] = lectric_thresholds
+    default_thresholds = target.DeviceThresholds(target.DEFAULT_CONFIG_TAG,
                                                  target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT,
                                                  target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT,
                                                  target.FULL_CHARGE_THRESHOLD_DEFAULT,
@@ -61,7 +61,7 @@ def execute_before_any_test():
                                                  target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
                                                  target.COARSE_PROBE_THRESHOLD_MARGIN
                                                  )
-    target.device_thresholds[target.DEFAULT_THRESHOLDS_TAG] = default_thresholds
+    target.device_config[target.DEFAULT_CONFIG_TAG] = default_thresholds
 
     battery_plug_list.append(BatteryPlug('battery_1', target.SmartDevice('127.0.0.1'), max_cycles_in_fine_mode, rad_thresholds))
     battery_plug_list.append(BatteryPlug('battery_2', target.SmartDevice('127.0.0.1'), max_cycles_in_fine_mode, rad_thresholds))
@@ -69,12 +69,12 @@ def execute_before_any_test():
 def test_fixture_init():
     print(f'fake, battery_plug_list')
     assert len(battery_plug_list) > 0
-    assert len(target.device_thresholds) == 3
+    assert len(target.device_config) == 3
 
-def reset_device_thresholds():
-    target.device_thresholds.clear()
+def reset_device_config():
+    target.device_config.clear()
     target.plug_manufacturer_map.clear()
-    default_thresholds = target.DeviceThresholds(target.DEFAULT_THRESHOLDS_TAG,
+    default_thresholds = target.DeviceThresholds(target.DEFAULT_CONFIG_TAG,
                                                  target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT,
                                                  target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT,
                                                  target.FULL_CHARGE_THRESHOLD_DEFAULT,
@@ -83,38 +83,38 @@ def reset_device_thresholds():
                                                  target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
                                                  target.COARSE_PROBE_THRESHOLD_MARGIN
                                                  )
-    target.device_thresholds[target.DEFAULT_THRESHOLDS_TAG] = default_thresholds
+    target.device_config[target.DEFAULT_CONFIG_TAG] = default_thresholds
 
 def set_sample_thresholds():
-    reset_device_thresholds()
+    reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
-    assert len(target.device_thresholds) == 3
+    assert len(target.device_config) == 3
     assert len(target.plug_manufacturer_map) == 5
     assert len(target.plug_storage_list) == 1
 
 def test_verify_config_file():
-    reset_device_thresholds()
+    reset_device_config()
     result = target.verify_config_file('not_a_real_file.config')
     assert result == False
     assert len(target.plug_manufacturer_map) == 0
-    reset_device_thresholds()
+    reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
-    assert len(target.device_thresholds) == 3
+    assert len(target.device_config) == 3
     assert len(target.plug_manufacturer_map) == 5
     assert len(target.plug_storage_list) == 1
-    reset_device_thresholds()
+    reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'error_battery_plug_file.config')
     assert result == False
-    assert len(target.device_thresholds) == 3
+    assert len(target.device_config) == 3
     assert len(target.plug_manufacturer_map) == 5
-    assert target.plug_manufacturer_map['rad_battery_3'] == target.DEFAULT_THRESHOLDS_TAG
+    assert target.plug_manufacturer_map['rad_battery_3'] == target.DEFAULT_CONFIG_TAG
 
 @pytest.mark.asyncio
 async def test_update_battery_plug_list():
     with patch('kasa.SmartDevice', new_callable=AsyncMock) as mock:
-        reset_device_thresholds()
+        reset_device_config()
         save_battery_plug_list = target.battery_plug_list
         target.battery_plug_list = []
         mock_smart_device_plug = mock.return_value
@@ -148,7 +148,7 @@ async def test_update_battery_plug_list():
 @pytest.mark.asyncio
 async def test_update_battery_plug_list_config_name_not_battery():
     with patch('kasa.SmartDevice', new_callable=AsyncMock) as mock:
-        reset_device_thresholds()
+        reset_device_config()
         plug_manufacturer_map = {}
         plug_manufacturer_map['rad_power_1'] = 100
         plug_manufacturer_map['lectric_1'] = 101
@@ -185,10 +185,10 @@ async def test_update_battery_plug_list_config_name_not_battery():
         target.battery_plug_list = save_battery_plug_list
 
 def setup_sample_config():
-    reset_device_thresholds()
+    reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
-    assert len(target.device_thresholds) == 3
+    assert len(target.device_config) == 3
     assert len(target.plug_manufacturer_map) == 5
     assert len(target.plug_storage_list) == 1
 
@@ -212,22 +212,22 @@ def verify_plug(plug: BatteryPlug, start_nominal: float, stop_nominal: float, st
         assert plug.get_active_charge_battery_power_threshold() == stop_nominal
 
 def test_storage_mode():
-    reset_device_thresholds()
+    reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
-    assert len(target.device_thresholds) == 3
+    assert len(target.device_config) == 3
     assert len(target.plug_manufacturer_map) == 5
     assert len(target.plug_storage_list) == 1
-    assert target.device_thresholds['Rad'].nominal_charge_start_power_threshold == 90.0
-    assert target.device_thresholds['Rad'].nominal_charge_stop_power_threshold == 45.0
-    assert target.device_thresholds['Rad'].full_charge_power_threshold == 5.0
-    assert target.device_thresholds['Rad'].storage_charge_start_power_threshold == 115.0
-    assert target.device_thresholds['Rad'].storage_charge_stop_power_threshold == 115.0
-    assert target.device_thresholds['Lectric'].nominal_charge_start_power_threshold == 40.0
-    assert target.device_thresholds['Lectric'].nominal_charge_stop_power_threshold == 40.0
-    assert target.device_thresholds['Lectric'].full_charge_power_threshold == 10.0
-    assert target.device_thresholds['Lectric'].storage_charge_start_power_threshold == target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT
-    assert target.device_thresholds['Lectric'].storage_charge_stop_power_threshold == target.STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT
+    assert target.device_config['Rad'].nominal_charge_start_power_threshold == 90.0
+    assert target.device_config['Rad'].nominal_charge_stop_power_threshold == 45.0
+    assert target.device_config['Rad'].full_charge_power_threshold == 5.0
+    assert target.device_config['Rad'].storage_charge_start_power_threshold == 115.0
+    assert target.device_config['Rad'].storage_charge_stop_power_threshold == 115.0
+    assert target.device_config['Lectric'].nominal_charge_start_power_threshold == 40.0
+    assert target.device_config['Lectric'].nominal_charge_stop_power_threshold == 40.0
+    assert target.device_config['Lectric'].full_charge_power_threshold == 10.0
+    assert target.device_config['Lectric'].storage_charge_start_power_threshold == target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT
+    assert target.device_config['Lectric'].storage_charge_stop_power_threshold == target.STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT
     for plug_name in list(target.plug_manufacturer_map.keys()):
         print(f'test_storage_mode:plug_name: {plug_name}')
         if 'rad' in plug_name:
@@ -245,23 +245,23 @@ def test_storage_mode():
             verify_plug(strip_plug, 40.0, 40.0, 90.0, 10.0)
 
 def test_full_charge_mode():
-    reset_device_thresholds()
+    reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'test.config')
     assert result == True
     assert len(target.plug_storage_list) == 2
     assert len(target.plug_full_charge_list) == 1
     assert 'rad_battery_1' in target.plug_full_charge_list
 
-def test_get_device_thresholds():
+def test_get_device_config():
     set_sample_thresholds()
-    rad_device_threshold = target.get_device_thresholds(RAD_BATTERY_1)
+    rad_device_threshold = target.get_device_config(RAD_BATTERY_1)
     assert rad_device_threshold.manufacturer_name == 'Rad'
     assert rad_device_threshold.full_charge_power_threshold == target.FULL_CHARGE_THRESHOLD_DEFAULT
     assert rad_device_threshold.nominal_charge_start_power_threshold == 90.0
     assert rad_device_threshold.nominal_charge_stop_power_threshold == 45.0
     assert rad_device_threshold.storage_charge_stop_power_threshold == 115.0
-    default_device_threshold = target.get_device_thresholds('rad_battery_7')
-    assert default_device_threshold.manufacturer_name == target.DEFAULT_THRESHOLDS_TAG
+    default_device_threshold = target.get_device_config('rad_battery_7')
+    assert default_device_threshold.manufacturer_name == target.DEFAULT_CONFIG_TAG
 
 def test_create_battery_plug():
     set_sample_thresholds()
@@ -335,7 +335,7 @@ def test_delete_plugs():
     assert len(battery_plug_list) == starting_len
 
 def test_start_threshold_check():
-    reset_device_thresholds()
+    reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
     plugs = []

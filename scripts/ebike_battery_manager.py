@@ -24,7 +24,7 @@ COARSE_PROBE_THRESHOLD_MARGIN = 20.0
 CONFIG_PLUGS_SECTION = 'Plugs'
 CONFIG_STORAGE_SECTION = 'Storage'
 CONFIG_FULL_CHARGE_SECTION = 'FullCharge'
-DEFAULT_THRESHOLDS_TAG = 'DEFAULT'
+DEFAULT_CONFIG_TAG = 'DEFAULT'
 NOMINAL_START_THRESHOLD_TAG = 'nominal_charge_start_power_threshold'
 NOMINAL_STOP_THRESHOLD_TAG = 'nominal_charge_stop_power_threshold'
 FULL_CHARGE_THRESHOLD_TAG = 'full_charge_power_threshold'
@@ -62,7 +62,7 @@ max_hours_to_run = DEFAULT_MAX_RUNTIME_HOURS
 storage_charge_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
 
 battery_plug_list = []
-device_thresholds = {}
+device_config = {}
 plug_manufacturer_map = {}
 plug_storage_list = []
 plug_full_charge_list = []
@@ -449,7 +449,7 @@ def create_battery_plug(plug_name: str, smart_device: SmartDevice) -> BatteryPlu
     '''
     global max_cycles_in_fine_mode, plug_storage_list, plug_full_charge_list, storage_charge_cycle_limit, force_full_charge
     plug: BatteryPlug = BatteryPlug(
-        plug_name, smart_device, max_cycles_in_fine_mode, get_device_thresholds(plug_name))
+        plug_name, smart_device, max_cycles_in_fine_mode, get_device_config(plug_name))
     if plug_name in plug_storage_list:
         plug.set_battery_charge_mode(BatteryChargeMode.STORAGE)
     elif plug_name in plug_full_charge_list:
@@ -474,7 +474,7 @@ def create_battery_strip_plug(plug_name: str, smart_device: SmartDevice, index: 
     '''
     global max_cycles_in_fine_mode, plug_storage_list, storage_charge_cycle_limit, force_full_charge
     plug: BatteryStripPlug = BatteryStripPlug(
-        plug_name, smart_device, index, max_cycles_in_fine_mode, get_device_thresholds(plug_name))
+        plug_name, smart_device, index, max_cycles_in_fine_mode, get_device_config(plug_name))
     if plug_name in plug_storage_list:
         plug.set_battery_charge_mode(BatteryChargeMode.STORAGE)
     elif plug_name in plug_full_charge_list:
@@ -817,19 +817,19 @@ async def shutdown_plugs() -> None:
     logging.info('>>>>> shutdown_plugs OK <<<<<')
 
 
-def get_device_thresholds(plug_name: str) -> DeviceThresholds:
+def get_device_config(plug_name: str) -> DeviceThresholds:
     '''
-    Retrieves a DeviceThresholds class from device_thresholds with the following priority
-    1. if the plug_name is found in device_thresholds => use the appropriate manufacturer value
+    Retrieves a DeviceThresholds class from device_config with the following priority
+    1. if the plug_name is found in device_config => use the appropriate manufacturer value
     2. if the plug_name is NOT found => use DEFAULT
     3. if the plug_name manufacturer is missing => DEFAULT
-    Note, device_thresholds must always have a DEFAULT_THRESHOLDS_TAG tag
+    Note, device_config must always have a DEFAULT_CONFIG_TAG tag
     '''
-    global device_thresholds, plug_manufacturer_map
+    global device_config, plug_manufacturer_map
     if plug_name in plug_manufacturer_map:
         manufacturer = plug_manufacturer_map[plug_name]
-        return device_thresholds[manufacturer]
-    return device_thresholds[DEFAULT_THRESHOLDS_TAG]
+        return device_config[manufacturer]
+    return device_config[DEFAULT_CONFIG_TAG]
 
 
 def check_required_config_strings(config, required_tags: list, one_of_option_tag: list) -> bool:
@@ -850,7 +850,7 @@ def verify_config_file(config_file_name: str) -> bool:
     '''
     fails if there is a config file and the [PLUGS] section has a manufacturer that is not in the file
     plug fails will use the DEFAULT thresholds
-    On completion, the device_thresholds dict will be filled in as much as possible except for the DEFAULT entry
+    On completion, the device_config dict will be filled in as much as possible except for the DEFAULT entry
 
     Args:
         config_file_name (str): name of full path to a config file
@@ -858,7 +858,7 @@ def verify_config_file(config_file_name: str) -> bool:
     Returns:
         bool: Normal exit indicating success in parsing the config file
     '''
-    global device_thresholds, plug_manufacturer_map, plug_storage_list, plug_full_charge_list
+    global device_config, plug_manufacturer_map, plug_storage_list, plug_full_charge_list
     try:
         verified = True
         if isfile(config_file_name):
@@ -907,7 +907,7 @@ def verify_config_file(config_file_name: str) -> bool:
                             config_parser[manufacturer][STORAGE_CHARGE_CYCLE_LIMIT_TAG])
                     else:
                         storage_charge_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
-                    device_thresholds[manufacturer] = DeviceThresholds(manufacturer,
+                    device_config[manufacturer] = DeviceThresholds(manufacturer,
                                                                        nominal_charge_start_power_threshold,
                                                                        nominal_charge_stop_power_threshold,
                                                                        float(
@@ -924,12 +924,12 @@ def verify_config_file(config_file_name: str) -> bool:
                         logging.error(
                             f'>>>>> ERROR in verify_config_file, {manufacturer} not specified')
                         verified = False
-                        plug_manufacturer_map[plug_name] = DEFAULT_THRESHOLDS_TAG
+                        plug_manufacturer_map[plug_name] = DEFAULT_CONFIG_TAG
                         continue
-                    if manufacturer in device_thresholds:
+                    if manufacturer in device_config:
                         plug_manufacturer_map[plug_name] = manufacturer
                     else:
-                        plug_manufacturer_map[plug_name] = DEFAULT_THRESHOLDS_TAG
+                        plug_manufacturer_map[plug_name] = DEFAULT_CONFIG_TAG
             # any plugs in storage mode?
             if CONFIG_STORAGE_SECTION in sections:
                 plug_storage_list = list(config_parser[CONFIG_STORAGE_SECTION])
@@ -1105,7 +1105,7 @@ def run_battery_controller(default_thresholds,
         test_mode (bool): 
     '''
     global battery_plug_list, plug_storage_list, plug_full_charge_list
-    global device_thresholds, force_full_charge, quiet_mode, start_threshold_logger
+    global device_config, force_full_charge, quiet_mode, start_threshold_logger
 
     logging.info(f'Script logs are in {log_file}')
     start = datetime.now()
@@ -1116,7 +1116,7 @@ def run_battery_controller(default_thresholds,
             config_file_is_valid = verify_config_file(config_file)
     except Exception as e:
         pass
-    device_thresholds[DEFAULT_THRESHOLDS_TAG] = default_thresholds
+    device_config[DEFAULT_CONFIG_TAG] = default_thresholds
 
     logging.info('>>>>> START <<<<<')
     logging.info(f'  ---- test_mode: {str(test_mode)}')
@@ -1144,22 +1144,22 @@ def run_battery_controller(default_thresholds,
         f'  -------- storage_charge_cycle_limit: {str(storage_charge_cycle_limit)}')
     if config_file_is_valid:
         logging.info(f'  ---- MANUFACTURER specific thresholds')
-        for manufacturer in device_thresholds:
+        for manufacturer in device_config:
             if manufacturer == "DEFAULT":
                 continue
             logging.info(f'  ---- manufacturer: {str(manufacturer)}')
             logging.info(
-                f'  -------- nominal_charge_start_power_threshold: {str(device_thresholds[manufacturer].nominal_charge_start_power_threshold)}')
+                f'  -------- nominal_charge_start_power_threshold: {str(device_config[manufacturer].nominal_charge_start_power_threshold)}')
             logging.info(
-                f'  -------- nominal_charge_stop_power_threshold: {str(device_thresholds[manufacturer].nominal_charge_stop_power_threshold)}')
+                f'  -------- nominal_charge_stop_power_threshold: {str(device_config[manufacturer].nominal_charge_stop_power_threshold)}')
             logging.info(
-                f'  -------- full_charge_power_threshold: {str(device_thresholds[manufacturer].full_charge_power_threshold)}')
+                f'  -------- full_charge_power_threshold: {str(device_config[manufacturer].full_charge_power_threshold)}')
             logging.info(
-                f'  -------- storage_charge_start_power_threshold: {str(device_thresholds[manufacturer].storage_charge_start_power_threshold)}')
+                f'  -------- storage_charge_start_power_threshold: {str(device_config[manufacturer].storage_charge_start_power_threshold)}')
             logging.info(
-                f'  -------- storage_charge_stop_power_threshold: {str(device_thresholds[manufacturer].storage_charge_stop_power_threshold)}')
+                f'  -------- storage_charge_stop_power_threshold: {str(device_config[manufacturer].storage_charge_stop_power_threshold)}')
             logging.info(
-                f'  -------- storage_charge_cycle_limit: {str(device_thresholds[manufacturer].storage_charge_cycle_limit)}')
+                f'  -------- storage_charge_cycle_limit: {str(device_config[manufacturer].storage_charge_cycle_limit)}')
     start_quiet_mode()
     if len(plug_storage_list) > 0:
         logging.info(f'  ---- plugs in storage mode: ')
@@ -1332,7 +1332,7 @@ def main() -> None:
     quiet_mode = args.quiet_mode
 
     # By here global default values for thresholds are valid so create the DEFAULT one
-    default_thresholds = DeviceThresholds(DEFAULT_THRESHOLDS_TAG,
+    default_thresholds = DeviceThresholds(DEFAULT_CONFIG_TAG,
                                           nominal_charge_start_power_threshold,
                                           nominal_charge_stop_power_threshold,
                                           full_charge_power_threshold,

@@ -295,6 +295,9 @@ def test_get_device_config():
     assert rad_device_threshold.nominal_charge_start_power_threshold == 90.0
     assert rad_device_threshold.nominal_charge_stop_power_threshold == 45.0
     assert rad_device_threshold.storage_charge_stop_power_threshold == 115.0
+    assert rad_device_threshold.charger_amp_hour_rate == 2.0
+    assert rad_device_threshold.battery_amp_hour_capacity == 14.0
+    assert rad_device_threshold.charger_max_hours_to_run == 7.0
     default_device_threshold = target.get_device_config('rad_battery_7')
     assert default_device_threshold.manufacturer_name == target.DEFAULT_CONFIG_TAG
 

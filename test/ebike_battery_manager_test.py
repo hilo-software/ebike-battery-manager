@@ -243,6 +243,7 @@ def verify_plug(plug: BatteryPlug, start_nominal: float, stop_nominal: float, st
 def test_plug_is_time_expired():
     plug = target.create_battery_plug('TestTimeExpired', any)
     assert not plug.is_time_expired(datetime.now())
+    assert not plug.is_time_expired(datetime.now() + timedelta(hours=(plug.config.charger_max_hours_to_run/2)))
     assert plug.is_time_expired(datetime.now() + timedelta(hours=plug.config.charger_max_hours_to_run))
 
 def test_storage_mode():

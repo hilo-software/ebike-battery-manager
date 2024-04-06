@@ -920,9 +920,9 @@ def verify_config_file(config_file_name: str) -> bool:
                             config_parser[manufacturer][STORAGE_CHARGE_CYCLE_LIMIT_TAG])
                     else:
                         storage_charge_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
-                    charger_amp_hour_rate = charger_amp_hour_rate = float(
+                    charger_amp_hour_rate = float(
                         config_parser[manufacturer][CHARGER_AMP_HOUR_RATE_TAG]) if CHARGER_AMP_HOUR_RATE_TAG in config_parser[manufacturer] else 0.0
-                    battery_amp_hour_capacity = charger_amp_hour_rate = float(
+                    battery_amp_hour_capacity = float(
                         config_parser[manufacturer][BATTERY_AMP_HOUR_CAPACITY_TAG]) if BATTERY_AMP_HOUR_CAPACITY_TAG in config_parser[manufacturer] else 0.0
                     charger_max_hours_to_run = ceil(
                         battery_amp_hour_capacity / charger_amp_hour_rate) if charger_amp_hour_rate > 0.0 and battery_amp_hour_capacity > 0.0 else max_hours_to_run
@@ -1181,6 +1181,12 @@ def run_battery_controller(max_hours_to_run: int,
                 f'  -------- storage_charge_stop_power_threshold: {str(device_config[manufacturer].storage_charge_stop_power_threshold)}')
             logging.info(
                 f'  -------- storage_charge_cycle_limit: {str(device_config[manufacturer].storage_charge_cycle_limit)}')
+            logging.info(
+                f'  -------- charger_amp_hour_rate: {str(device_config[manufacturer].charger_amp_hour_rate)}')
+            logging.info(
+                f'  -------- battery_amp_hour_capacity: {str(device_config[manufacturer].battery_amp_hour_capacity)}')
+            logging.info(
+                f'  -------- charger_max_hours_to_run: {str(device_config[manufacturer].charger_max_hours_to_run)}')
     start_quiet_mode()
     if len(plug_storage_list) > 0:
         logging.info(f'  ---- plugs in storage mode: ')

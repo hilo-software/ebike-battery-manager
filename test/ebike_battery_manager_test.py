@@ -3,7 +3,7 @@ import pytest
 import asyncio
 from kasa import SmartDevice
 from unittest.mock import MagicMock, patch, AsyncMock
-from datetime import datetime
+from datetime import datetime, timedelta
 from math import ceil
 import time
 import configparser
@@ -239,6 +239,11 @@ def verify_plug(plug: BatteryPlug, start_nominal: float, stop_nominal: float, st
         assert plug.battery_charge_mode == target.BatteryChargeMode.NOMINAL
         assert plug.get_start_power_threshold() == start_nominal
         assert plug.get_active_charge_battery_power_threshold() == stop_nominal
+
+def test_plug_is_time_expired():
+    plug = target.create_battery_plug('TestTimeExpired', any)
+    assert not plug.is_time_expired(datetime.now())
+    assert plug.is_time_expired(datetime.now() + timedelta(hours=plug.config.charger_max_hours_to_run))
 
 def test_storage_mode():
     reset_device_config()

@@ -161,6 +161,10 @@ class BatteryPlug():
 
     def is_on(self) -> bool:
         return self.device.is_on
+    
+    def is_time_expired(self, current_time: datetime) -> bool:
+        return current_time > self.battery_charge_stop_time
+
 
     def get_full_charge_battery_power_threshold(self) -> float:
         return self.config.full_charge_power_threshold
@@ -677,6 +681,12 @@ async def analyze() -> bool:
 
         if not plug.is_on():
             logging.info(plug_name + ' is OFF')
+            plugs_to_delete.append(plug)
+            continue
+
+        # check if plug's time is expired
+        if plug.is_time_expired(datetime.now()):
+            logging.info(plug_name + ' time expired')
             plugs_to_delete.append(plug)
             continue
 

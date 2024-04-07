@@ -73,8 +73,19 @@ quiet_logging_mode: bool = False
 analyze_first_entry = True
 default_config = None
 
-start_threshold_logger = logging.getLogger('start_threshold_logger')
+class CustomLogger(logging.Logger):
+    def __init__(self, name, level=logging.NOTSET):
+        super().__init__(name, level)
+        self.addHandler(logging.NullHandler())
 
+# logging setup for special debug logger
+start_threshold_logger = CustomLogger('start_threshold_logger')
+start_threshold_logger_formatter = logging.Formatter('THRESHOLD: %(asctime)s - %(name)s - %(levelname)s - %(message)s')
+start_threshold_logger_file_handler = logging.FileHandler(INVESTIGATE_START_CURRENT_FILE)
+start_threshold_logger_file_handler.setFormatter(start_threshold_logger_formatter)
+start_threshold_logger_file_handler.setLevel(logging.INFO)
+start_threshold_logger.addHandler(start_threshold_logger_file_handler)
+start_threshold_logger.setLevel(logging.INFO)
 
 class ActivePlug():
     plug_name: str
@@ -1265,16 +1276,7 @@ def main() -> None:
     parser = init_argparse()
     args = parser.parse_args()
 
-    # investigative logging
-    start_threshold_logger.setLevel(logging.INFO)
-    file_handler = logging.FileHandler(INVESTIGATE_START_CURRENT_FILE)
-    file_handler.setLevel(logging.INFO)
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(formatter)
-    start_threshold_logger.addHandler(file_handler)
-
-    # set up logging
+    # set up default logging
     if args.log_file_name != None:
         log_file = args.log_file_name
 

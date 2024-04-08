@@ -502,6 +502,15 @@ def create_battery_strip_plug(plug_name: str, smart_device: SmartDevice, index: 
     return plug
 
 
+async def update_strip_plug(plug, smart_device, index):
+    strip_plug = create_battery_strip_plug(plug.alias, smart_device, index)
+    logging.info(
+        f'SmartStrip: plug: {plug.alias}, battery_charge_mode: {str(strip_plug.battery_charge_mode)}')
+    await strip_plug.update()
+    logging.info(f'SmartStrip: plug: {plug.alias}, update() ok')
+    return strip_plug
+
+
 async def update_battery_plug_list(smart_device: SmartDevice, manufacturer_plug_names: dict) -> None:
     '''
     Finds plug depending on if the plug is singular or part of a battery strip.
@@ -524,17 +533,12 @@ async def update_battery_plug_list(smart_device: SmartDevice, manufacturer_plug_
     if smart_device.is_strip:
         logging.info(
             f'init: found a SmartStrip: {smart_device.alias}, children: {str(len(smart_device.children))}')
-        index = 0
-        for plug in smart_device.children:
+        tasks = []
+        for index, plug in enumerate(smart_device.children):
             if BATTERY_PREFIX in plug.alias or plug.alias in manufacturer_plug_names:
-                strip_plug = create_battery_strip_plug(
-                    plug.alias, smart_device, index)
-                logging.info(
-                    f'SmartStrip: plug: {plug.alias}, battery_charge_mode: {str(strip_plug.battery_charge_mode)}')
-                await strip_plug.update()
-                logging.info(f'SmartStrip: plug: {plug.alias}, update() ok')
-                battery_plug_list.append(strip_plug)
-            index = index + 1
+                tasks.append(update_strip_plug(plug, smart_device, index))
+        updated_plugs = await asyncio.gather(*tasks)
+        battery_plug_list.extend(updated_plugs)
 
 
 async def init() -> int:

@@ -74,6 +74,14 @@ analyze_first_entry = True
 default_config = None
 
 class CustomLogger(logging.Logger):
+    '''
+    _summary_ Custom logger for debugging, currently used in start_threshold_logger below
+    Only logs to file and not console
+    Logging level control is independent of the default logger
+
+    Args:
+        logging (_type_): _description_
+    '''
     def __init__(self, name, level=logging.NOTSET):
         super().__init__(name, level)
         self.addHandler(logging.NullHandler())
@@ -184,6 +192,10 @@ class BatteryPlug():
         return self.config.nominal_charge_stop_power_threshold
 
     def get_active_charge_battery_power_threshold(self) -> float:
+        '''
+        Returns:
+            float: Appropriate power threshold the charger must drop below as a stopping condition
+        '''
         match self.battery_charge_mode:
             case BatteryChargeMode.NOMINAL:
                 return self.config.nominal_charge_stop_power_threshold
@@ -193,6 +205,10 @@ class BatteryPlug():
                 return self.config.storage_charge_stop_power_threshold
 
     def get_start_power_threshold(self) -> float:
+        '''
+        Returns the appropriate power threshold that the charger must draw in order
+        to enter the repsective charge mode
+        '''
         match self.battery_charge_mode:
             case BatteryChargeMode.NOMINAL:
                 return self.config.nominal_charge_start_power_threshold
@@ -243,13 +259,22 @@ class BatteryPlug():
         return False
     
     def start_threshold_check(self, device_power_consumption: float) -> bool:
+        '''
+        Logic that should be satisfied to allow a battery/charger pair to start charging
+
+        Args:
+            device_power_consumption (float): _description_
+
+        Returns:
+            bool: _description_
+        '''
         if self.battery_charge_mode == BatteryChargeMode.FULL:
             return True
         return device_power_consumption > self.get_start_power_threshold()
 
-    def threshold_check(self, device_power_consumption: float) -> bool:
+    def stop_threshold_check(self, device_power_consumption: float) -> bool:
         '''
-        Checks internal battery thresholds based on BatteryChargeMode and returns True if the threshold criteris is passed
+        Checks internal battery thresholds based on BatteryChargeMode and returns True if the stop threshold criteria is passed
 
         Args:
             device_power_consumption (float): _description_
@@ -330,7 +355,7 @@ class BatteryPlug():
 
 class BatteryStripPlug(BatteryPlug):
     '''
-    This class subclasses BatteryPlug and supports the TP-Link HS300 SmartStrip
+    This class subclasses BatteryPlug and supports the TP-Link HS300 SmartStrip plugs
     '''
     plug_index: int
 
@@ -502,7 +527,7 @@ def create_battery_strip_plug(plug_name: str, smart_device: SmartDevice, index: 
     return plug
 
 
-async def update_strip_plug(plug, smart_device, index):
+async def update_strip_plug(plug, smart_device, index) -> BatteryStripPlug:
     strip_plug = create_battery_strip_plug(plug.alias, smart_device, index)
     logging.info(
         f'SmartStrip: plug: {plug.alias}, battery_charge_mode: {str(strip_plug.battery_charge_mode)}')
@@ -720,11 +745,11 @@ async def analyze() -> bool:
                     f'!!!! DEBUG: analyze(): LOOP - start_threshold_check() is True, plug: {str(plug_name)}, power: {str(device_power_consumption)}')
 
 
-        if plug.threshold_check(device_power_consumption):
+        if plug.stop_threshold_check(device_power_consumption):
             turn_off_plug = plug.check_full_charge() or plug.check_storage_mode()
             if turn_off_plug:
                 logging.info(
-                    f'{plug_name}: (threshold_check) has no battery present or it may be fully charged: {str(device_power_consumption)}')
+                    f'{plug_name}: (stop_threshold_check) has no battery present or it may be fully charged: {str(device_power_consumption)}')
                 await turn_off_and_delete_plug(plug)
                 continue
             plug.fine_mode_active = True
@@ -1197,9 +1222,9 @@ def run_battery_controller(max_hours_to_run: int,
             logging.info(
                 f'  -------- storage_charge_cycle_limit: {str(device_config[manufacturer].storage_charge_cycle_limit)}')
             logging.info(
-                f'  -------- charger_amp_hour_rate: {str(device_config[manufacturer].charger_amp_hour_rate)}')
+                f'  -------- charger_amp_hour_rate: {str(device_config[manufacturer].charger_amp_hour_rate) if device_config[manufacturer].charger_amp_hour_rate > 0.0 else "N/A"}')
             logging.info(
-                f'  -------- battery_amp_hour_capacity: {str(device_config[manufacturer].battery_amp_hour_capacity)}')
+                f'  -------- battery_amp_hour_capacity: {str(device_config[manufacturer].battery_amp_hour_capacity) if device_config[manufacturer].battery_amp_hour_capacity > 0.0 else "N/A"}')
             logging.info(
                 f'  -------- charger_max_hours_to_run: {str(device_config[manufacturer].charger_max_hours_to_run)}')
     start_quiet_mode()

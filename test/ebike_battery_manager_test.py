@@ -414,12 +414,12 @@ def test_threshold_check():
                                           rad_config.charger_max_hours_to_run)
     plug = BatteryPlug('test_battery_name', any, max_cycles_in_fine_mode, nominal_thresholds)
     assert plug.charge_threshold_passed == False
-    result = plug.threshold_check(91.0)
+    result = plug.stop_threshold_check(91.0)
     assert result == False
-    result = plug.threshold_check(89.0)
+    result = plug.stop_threshold_check(89.0)
     assert result == True
     assert plug.charge_threshold_passed == True
-    result = plug.threshold_check(91.0)
+    result = plug.stop_threshold_check(91.0)
     assert result == True
     plug.charge_threshold_passed = False
     plug.set_battery_charge_mode(target.BatteryChargeMode.FULL)
@@ -435,26 +435,26 @@ def test_threshold_check():
                                           rad_config.battery_amp_hour_capacity,
                                           rad_config.charger_max_hours_to_run)
     plug.config = full_charge_thresholds
-    result = plug.threshold_check(89.0)
+    result = plug.stop_threshold_check(89.0)
     assert result == False
-    result = plug.threshold_check(89.0)
+    result = plug.stop_threshold_check(89.0)
     assert result == False
-    result = plug.threshold_check(5.5)
+    result = plug.stop_threshold_check(5.5)
     assert result == False
     assert plug.charge_threshold_close_misses == 0
-    result = plug.threshold_check(5.1)
+    result = plug.stop_threshold_check(5.1)
     assert result == False
     assert plug.charge_threshold_close_misses == 1
-    result = plug.threshold_check(4.9)
+    result = plug.stop_threshold_check(4.9)
     assert result == False
     assert plug.charge_threshold_close_misses == 2
-    result = plug.threshold_check(5.5)
+    result = plug.stop_threshold_check(5.5)
     assert result == False
     assert plug.charge_threshold_close_misses == 2
-    result = plug.threshold_check(4.9)
+    result = plug.stop_threshold_check(4.9)
     assert result == False
     assert plug.charge_threshold_close_misses == 3
-    result = plug.threshold_check(4.9)
+    result = plug.stop_threshold_check(4.9)
     assert result == True
     assert plug.charge_threshold_close_misses == 4
     target.force_full_charge = False

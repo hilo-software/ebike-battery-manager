@@ -414,7 +414,7 @@ def init_argparse() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         '-a', '--app_key', metavar='',
-        help='Google app key needed to allow sending mail reports'
+        help='Google app key needed to allow sending mail reports [gmail only]'
     )
     parser.add_argument(
         '-f', '--force_full_charge',
@@ -424,7 +424,7 @@ def init_argparse() -> argparse.ArgumentParser:
     parser.add_argument(
         '-t', '--test_mode',
         action='store_true',
-        help='test mode only, verify early stage, no real plug activity'
+        help='test mode only, verify early stages, no real plug activity'
     )
     parser.add_argument(
         '-l', '--log_file_name', metavar='',

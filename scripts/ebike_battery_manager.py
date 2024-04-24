@@ -652,8 +652,7 @@ def delete_plugs(battery_plug_list: list, plugs_to_delete: list) -> None:
     Args:
         plugs_to_delete (list): plugs that need to be removed from global battery_plug_list
     '''
-    test_len = len(battery_plug_list)
-    print(f"delete_plugs test_len: {test_len}")
+    logging.info(f"delete_plugs test_len: {len(battery_plug_list)}")
     for plug in plugs_to_delete:
         try:
             battery_plug_list.remove(plug)

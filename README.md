@@ -1,7 +1,10 @@
 # EBike Battery Plug Manager
 
 ## **Important - Read this first**
-*This script requires additional hardware to work:* 
+*This script requires additional hardware to work:*  
+
+Required hardware:
+
 - One or more TP-Link Smart Plug socket or Smart Strip with energy metering capability (emeter)
     - The KP115 Smart Plug and the HS300 Smart Strip models are compatible.
     - The KP303 is NOT compatible as it does not have the energy metering capability.
@@ -13,7 +16,7 @@
 **If purchasing the hardware is not acceptable, GO NO FURTHER!**
 
 ## Summary
-### Possible Benefits
+### Benefits
 
 - The script monitors charging of batteries and turns off the plug that the charger is connected to when a suitable level of charge has been attained.
 - This should be equivalent to unplugging the charger from the  wall and avoids any safety issues associated with leaving chargers and batteries plugged into power after they are charged.
@@ -27,7 +30,7 @@
 
  The script looks at the power draw of the TP-Link plug that the charger is plugged into and based on the measured power draw, shuts off the plug once the chargers power draw drops below either nominal or full charge cutoff limits, depending on the mode the script is used in.
 
-### How Lithium Ion chargers work
+### How Lithium Ion battery chargers work
 See references 4, 5 below and the ExperimentalData.md file. 
 - Lithium Ion chargers work in two stages:
     - Stage 1 is the Constant Current charge and uses a constant current until an expected voltage is observed.
@@ -197,7 +200,7 @@ The Linux cron function allows scheduling actions based on time and date.
 - These work as the python-kasa library that supports the script appears to be developed in linux.
 - The script is set to look for bash as the command shell.  If the command shell is different, run explicitly under python by prefixing python3 to the script run line.
 #### Windows
-- The short answer is to run the script from a WSL linux shell.
+- The short answer is to run the script from a WSL linux shell where cron is available.
 - I have not tried this.  Also, it appears WSL supports cron but does not start the service by default.  
     - https://www.howtogeek.com/746532/how-to-launch-cron-automatically-in-wsl-on-windows-10-and-11/
 - Whether or not cron runs while windows sleeps is also a matter for the interested reader to determine.

@@ -7,7 +7,7 @@ from email.message import EmailMessage
 from datetime import datetime, timedelta
 import logging
 import argparse
-from typing import Set
+from typing import Set, Union
 from os.path import isfile
 from enum import Enum
 import configparser
@@ -106,6 +106,17 @@ class ActivePlug():
 
 
 active_plugs: Set[ActivePlug] = set()
+
+
+class AnalyzeException(Exception):
+    def __init__(self, msg: str):
+        self.msg = msg
+
+
+class BatteryPlugException(Exception):
+    def __init__(self, msg:str) -> None:
+        super().__init__(msg)
+        self.msg = msg
 
 
 class BatteryChargeMode(Enum):
@@ -318,7 +329,7 @@ class BatteryPlug():
     def get_storage_charge_cycle_limit(self) -> int:
         return self.storage_charge_cycle_limit
 
-    def get_and_decrement_storage_charge_cycle_limit(self) -> int:
+    def get_and_decrement_storage_charge_cycle_limit(self) -> Union[int, BatteryPlugException]:
         '''
         Returns the current_storage_charge_cycle_limit count and
         side-effects the storage_charge_cycle_limit by decrementing on each call
@@ -333,20 +344,20 @@ class BatteryPlug():
             self.storage_charge_cycle_limit = self.storage_charge_cycle_limit - 1
         return current_storage_charge_cycle_limit
 
-    async def turn_on(self):
+    async def turn_on(self) -> Union[None, BatteryPlugException]:
         await self.device.turn_on()
         await self.device.update()
         if not self.device.is_on:
             logging.error(f"FATAL ERROR, unable to turn on plug: {self.name}")
-            raise Exception(
+            raise BatteryPlugException(
                 f'FATAL ERROR, unable to turn on plug: {self.name}')
 
-    async def turn_off(self):
+    async def turn_off(self) -> Union[None, BatteryPlugException]:
         await self.device.turn_off()
         await self.device.update()
         if not self.device.is_off:
             logging.error(f"FATAL ERROR, unable to turn off plug: {self.name}")
-            raise Exception(
+            raise BatteryPlugException(
                 f'FATAL ERROR, unable to turn off plug: {self.name}')
 
     def get_device(self) -> SmartDevice:
@@ -371,24 +382,24 @@ class BatteryStripPlug(BatteryPlug):
         child_plug = self.device.children[self.plug_index]
         return child_plug.is_on
 
-    async def turn_on(self) -> None:
+    async def turn_on(self) -> Union[None, BatteryPlugException]:
         child_plug = self.device.children[self.plug_index]
         await child_plug.turn_on()
         await self.update()
         if not child_plug.is_on:
             logging.error(
                 f"FATAL ERROR, unable to turn on plug: {child_plug.name}")
-            raise Exception(
+            raise BatteryPlugException(
                 f'FATAL ERROR, unable to turn on plug: {child_plug.name}')
 
-    async def turn_off(self) -> None:
+    async def turn_off(self) -> Union[None, BatteryPlugException]:
         child_plug = self.device.children[self.plug_index]
         await child_plug.turn_off()
         await self.update()
         if not child_plug.is_off:
             logging.error(
                 f"FATAL ERROR, unable to turn off plug: {child_plug.name}")
-            raise Exception(
+            raise BatteryPlugException(
                 f'FATAL ERROR, unable to turn off plug: {child_plug.name}')
 
 
@@ -657,7 +668,7 @@ def delete_plugs(battery_plug_list: list, plugs_to_delete: list) -> None:
         try:
             battery_plug_list.remove(plug)
             stop_active_plug(plug.name)
-        except Exception as e:
+        except ValueError as e:
             logging.warning(
                 f'WARNING: plug: {plug.name} is not in battery_plug_list, exception: {str(e)}')
 
@@ -783,7 +794,7 @@ async def analyze() -> bool:
     return actively_charging
 
 
-async def analyze_loop(final_stop_time: datetime) -> bool:
+async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeException]:
     '''
     async function.  Encapsulates all downstream async functions.
     This is the main loop control, also does the initialization and setup prior to looping
@@ -795,7 +806,7 @@ async def analyze_loop(final_stop_time: datetime) -> bool:
         final_stop_time (datetime): Final watchdog to stop in case we are out of control due to unforeseen conditions
 
     Raises:
-        Exception: Error condition.  This is caught internally.
+        AnalyzeException: Error condition.  This is caught internally.
 
     Returns:
         bool: Normal exit indicating success or not
@@ -814,7 +825,7 @@ async def analyze_loop(final_stop_time: datetime) -> bool:
             battery_plug_ct = await init()
             if battery_plug_ct == 0:
                 logging.error("unexpectedly empty battery_plug_list")
-                raise Exception('ERROR, unexpectedly empty battery_plug_list')
+                raise AnalyzeException('ERROR, unexpectedly empty battery_plug_list')
             else:
                 logging.info(
                     f'SUCCESSFULLY found: {str(battery_plug_ct)} smart battery plugs')
@@ -827,7 +838,7 @@ async def analyze_loop(final_stop_time: datetime) -> bool:
                 if charging:
                     await asyncio.sleep(probe_interval_secs)
             success = True
-        except Exception as e:
+        except AnalyzeException as e:
             retry_limit = retry_limit - 1
             traceback_str = traceback.format_exc()
             logging.error(
@@ -844,6 +855,12 @@ async def analyze_loop(final_stop_time: datetime) -> bool:
                 success = False
             else:
                 await asyncio.sleep(RETRY_DELAY_SECS)
+        except BatteryPlugException as e:
+            traceback_str = traceback.format_exc()
+            logging.error(
+                f'!!!!!>>>>> ERROR ERROR ERROR ERROR BatteryPlugException: {e.msg} <<<<<!!!!!')
+            success = False
+
     return success
 
 
@@ -860,13 +877,13 @@ async def shutdown_plugs() -> None:
             await plug.update()
             await plug.turn_off()
             plugs_to_delete.append(plug)
-    except Exception as e:
+    except BatteryPlugException as e:
         logging.error(f'FATAL ERROR: shutdown_plugs: {str(e)}')
         logging.error(
             'FATAL ERROR: Unable to shutdown plugs, check plug status manually')
-        delete_plugs(battery_plug_list, plugs_to_delete)
         return
-    delete_plugs(battery_plug_list, plugs_to_delete)
+    finally:      
+        delete_plugs(battery_plug_list, plugs_to_delete)
     logging.info('>>>>> shutdown_plugs OK <<<<<')
 
 
@@ -1003,6 +1020,7 @@ def verify_config_file(config_file_name: str) -> bool:
             logging.error(
                 f'>>>>> ERROR: specified config_file: {config_file_name} does not exist')
             return False
+    # Bad form but we want to absolutely return True or False from this function and any exception => False
     except Exception as e:
         logging.error(
             f'FATAL ERROR: Exception in verify_config_file({config_file_name}): {str(e)}')
@@ -1113,7 +1131,6 @@ async def test_stuff() -> None:
         await item.turn_off()
         logging.info(
             f'iterate: name: {item.name} on: {str(item.is_on())}, power: {str(item.get_power())}')
-        # await item.turn_on()
         logging.info(
             f'iterate: name: {item.name} on: {str(item.is_on())}, power: {str(item.get_power())}')
 
@@ -1171,11 +1188,8 @@ def run_battery_controller(max_hours_to_run: int,
     start = datetime.now()
 
     config_file_is_valid = False
-    try:
-        if config_file != None:
-            config_file_is_valid = verify_config_file(config_file)
-    except Exception as e:
-        pass
+    if config_file != None:
+        config_file_is_valid = verify_config_file(config_file)
     device_config[DEFAULT_CONFIG_TAG] = default_config
 
     logging.info('>>>>> START <<<<<')
@@ -1273,15 +1287,16 @@ def run_battery_controller(max_hours_to_run: int,
 def setup_logging_handlers(log_file: str) -> list:
     try:
         logging_file_handler = logging.FileHandler(filename=log_file, mode='w')
-        logging_handlers = [
-            logging_file_handler,
-            logging.StreamHandler()
-        ]
-    except Exception:
-        print(f'ERROR -- Could not create logging file: {log_file}')
+    except (IOError, OSError, ValueError, FileNotFoundError) as e:
+        print(f'ERROR -- Could not create logging file: {log_file}, e: {str(e)}')
         logging_handlers = [
             logging.StreamHandler()
         ]
+        return logging_handlers
+    logging_handlers = [
+        logging_file_handler,
+        logging.StreamHandler()
+    ]
     return logging_handlers
 
 
@@ -1325,68 +1340,68 @@ def main() -> None:
                 args.nominal_start_charge_threshold)
             logging.info(
                 f'>>>>> OVERRIDE nominal_charge_start_power_threshold: {str(nominal_charge_start_power_threshold)}')
-        except Exception as e:
-            pass
+        except (ValueError, TypeError, OverflowError) as e:
+            logging.error(f'ERROR, Invalid nominal_charge_start_charge_threshold: {str(e)}')
     if args.nominal_charge_cutoff != None:
         try:
             nominal_charge_stop_power_threshold = float(
                 args.nominal_charge_cutoff)
             logging.info(
                 f'>>>>> OVERRIDE nominal_charge_stop_power_threshold: {str(nominal_charge_stop_power_threshold)}')
-        except Exception as e:
-            pass
+        except (ValueError, TypeError, OverflowError) as e:
+            logging.error(f'ERROR, Invalid nominal_charge_stop_power_threshold: {str(e)}')
     if args.full_charge_cutoff != None:
         try:
             full_charge_power_threshold = float(
                 args.full_charge_cutoff)
             logging.info(
                 f'>>>>> OVERRIDE full_charge_power_threshold: {str(full_charge_power_threshold)}')
-        except Exception as e:
-            pass
+        except (ValueError, TypeError, OverflowError) as e:
+            logging.error(f'ERROR, Invalid full_charge_power_threshold: {str(e)}')
     if args.storage_start_charge_threshold != None:
         try:
             storage_charge_start_power_threshold = float(
                 args.storage_start_charge_threshold)
             logging.info(
                 f'>>>>> OVERRIDE storage_charge_start_power_threshold: {str(storage_charge_start_power_threshold)}')
-        except Exception as e:
-            pass
+        except (ValueError, TypeError, OverflowError) as e:
+            logging.error(f'ERROR, Invalid storage_charge_start_power_threshold: {str(e)}')
     if args.storage_charge_cutoff != None:
         try:
             storage_charge_stop_power_threshold = float(
                 args.storage_charge_cutoff)
             logging.info(
                 f'>>>>> OVERRIDE storage_charge_stop_power_threshold: {str(storage_charge_stop_power_threshold)}')
-        except Exception as e:
-            pass
+        except (ValueError, TypeError, OverflowError) as e:
+            logging.error(f'ERROR, Invalid storage_charge_stop_power_threshold: {str(e)}')
     if args.full_charge_repeat_limit != None:
         try:
             full_charge_repeat_limit = args.full_charge_repeat_limit
             logging.info(
                 f'>>>>> OVERRIDE full_charge_repeat_limit: {str(full_charge_repeat_limit)}')
-        except Exception as e:
-            pass
+        except (ValueError, TypeError, OverflowError) as e:
+            logging.error(f'ERROR, Invalid full_charge_repeat_limit: {str(e)}')
     if args.max_cycles_in_fine_mode != None:
         try:
             max_cycles_in_fine_mode = args.max_cycles_in_fine_mode
             logging.info(
                 f'>>>>> OVERRIDE max_cycles_in_fine_mode: {str(max_cycles_in_fine_mode)}')
-        except Exception as e:
-            pass
+        except (ValueError, TypeError, OverflowError) as e:
+            logging.error(f'ERROR, Invalid max_cycles_in_fine_mode: {str(e)}')
     if args.storage_charge_cycle_limit != None:
         try:
             storage_charge_cycle_limit = args.storage_charge_cycle_limit
             logging.info(
-                f'>>>>> OVERRIDE max_cycles_in_fine_mode: {str(storage_charge_cycle_limit)}')
-        except Exception as e:
-            pass
+                f'>>>>> OVERRIDE storage_charge_cycle_limit: {str(storage_charge_cycle_limit)}')
+        except (ValueError, TypeError, OverflowError) as e:
+            logging.error(f'ERROR, Invalid storage_charge_cycle_limit: {str(e)}')
     if args.max_hours_to_run != None:
         try:
             max_hours_to_run = args.max_hours_to_run
             logging.info(
                 f'>>>>> OVERRIDE max_hours_to_run: {str(max_hours_to_run)}')
-        except Exception as e:
-            pass
+        except (ValueError, TypeError, OverflowError) as e:
+            logging.error(f'ERROR, Invalid max_hours_to_run: {str(e)}')
     quiet_mode = args.quiet_mode
 
     # By here global default values for thresholds are valid so create the DEFAULT one

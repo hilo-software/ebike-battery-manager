@@ -119,6 +119,16 @@ def set_sample_thresholds():
     assert len(target.plug_manufacturer_map) == 5
     assert len(target.plug_storage_list) == 1
 
+def test_setup_logging_handlers():
+    # Passing a null filename will cause an exception and the 
+    # logging_handlers list should only have one item.
+    logging_handlers = target.setup_logging_handlers('')
+    assert len(logging_handlers) == 1
+    # Passing a valid filename will create the log file and the 
+    # logging_handlers list should have two items.
+    logging_handlers = target.setup_logging_handlers('foo.txt')
+    assert len(logging_handlers) == 2
+
 def test_verify_config_file():
     reset_device_config()
     result = target.verify_config_file('not_a_real_file.config')
@@ -136,6 +146,58 @@ def test_verify_config_file():
     assert len(target.device_config) == 3
     assert len(target.plug_manufacturer_map) == 5
     assert target.plug_manufacturer_map['rad_battery_3'] == target.DEFAULT_CONFIG_TAG
+
+@pytest.mark.asyncio
+async def test_battery_plug_exception():
+    with patch('kasa.SmartDevice', new_callable=AsyncMock) as mock:
+        mock_smart_device_plug = mock.return_value
+        mock_smart_device_plug.is_plug = True
+        mock_smart_device_plug.is_strip = False
+        mock_smart_device_plug.is_on = False
+        battery_plug = target.create_battery_plug('TestExceptionPlug', mock_smart_device_plug)
+        exception_occurred = False
+        try:
+            await battery_plug.turn_on()
+        except target.BatteryPlugException as e:
+            exception_occurred = True
+        finally:
+            assert exception_occurred
+
+
+@pytest.mark.asyncio
+async def test_battery_strip_plug_exception():
+    with patch('kasa.SmartDevice', new_callable=AsyncMock) as mock:
+        with patch('kasa.SmartDevice', new_callable=AsyncMock) as child_mock_1:
+            with patch('kasa.SmartDevice', new_callable=AsyncMock) as child_mock_2:
+                mock_smart_device_strip = mock.return_value
+                mock_smart_device_strip.is_plug = False
+                mock_smart_device_strip.is_strip = True
+                mock_smart_device_strip.alias = 'lectric_strip_1'
+                mock_strip_children = []
+                mock_strip_children.append(child_mock_1.return_value)
+                mock_strip_children[0].alias = 'lectric_battery_1'
+                mock_strip_children[0].is_on = True
+                mock_strip_children.append(child_mock_2.return_value)
+                mock_strip_children[1].alias = 'lectric_battery_2'
+                mock_strip_children[1].is_on = False
+                mock_smart_device_strip.children = mock_strip_children
+                battery_strip_plug = target.create_battery_strip_plug('TestExceptionStripPlug', mock_smart_device_strip, 0)
+                exception_occurred = False
+                try:
+                    await battery_strip_plug.turn_on()
+                except target.BatteryPlugException as e:
+                    exception_occurred = True
+                finally:
+                    assert not exception_occurred
+                battery_strip_plug = target.create_battery_strip_plug('TestExceptionStripPlug', mock_smart_device_strip, 1)
+                exception_occurred = False
+                try:
+                    await battery_strip_plug.turn_on()
+                except target.BatteryPlugException as e:
+                    exception_occurred = True
+                finally:
+                    assert exception_occurred
+
 
 @pytest.mark.asyncio
 async def test_update_battery_plug_list():
@@ -160,7 +222,7 @@ async def test_update_battery_plug_list():
         mock_smart_device_strip = mock.return_value
         mock_smart_device_strip.is_plug = False
         mock_smart_device_strip.is_strip = True
-        mock_smart_device_strip.alias = 'rad_strip_1'
+        mock_smart_device_strip.alias = 'lectric_strip_1'
         mock_strip_children = []
         mock_strip_children.append(mock.return_value)
         mock_strip_children[0].alias = 'lectric_battery_1'

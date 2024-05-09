@@ -538,9 +538,9 @@ def test_mock_BatteryStripPlug():
 def test_active_plugs():
     target.set_active_plug('plug_1')
     target.set_active_plug('plug_2')
-    assert len(target.active_plugs) == 2
+    assert len(target.BatteryManagerState().active_plugs) == 2
     time.sleep(1)
-    for active_plug in target.active_plugs:
+    for active_plug in target.BatteryManagerState().active_plugs:
         target.stop_active_plug(active_plug.plug_name)
         elapsed_time: datetime = active_plug.stop_time - active_plug.start_time
         assert elapsed_time.seconds > 0

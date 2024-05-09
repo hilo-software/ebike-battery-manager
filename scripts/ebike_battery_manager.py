@@ -80,12 +80,14 @@ class BatteryManagerState:
     _max_hours_to_run: int
     _storage_charge_cycle_limit: int
     _analyze_first_entry: bool
+    _quiet_mode: bool
     _default_config: "DeviceConfig"
     _device_config: Dict[str, "DeviceConfig"]
     _plug_manufacturer_map: Dict[str, str]
     _battery_plug_list: List[Union["BatteryPlug", "BatteryStripPlug"]]
     _plug_storage_list: List[str]
     _plug_full_charge_list: List[str]
+    _active_plugs: Set["ActivePlug"]
 
     def __new__(cls):
         if cls._instance is None:
@@ -103,7 +105,9 @@ class BatteryManagerState:
             cls._instance._plug_storage_list = []
             cls._instance._plug_full_charge_list = []
             cls._instance._analyze_first_entry = True
+            cls._instance._quiet_mode = False
             cls._instance._default_config = None
+            cls._instance._active_plugs = set()
         return cls._instance
 
     @property
@@ -171,6 +175,14 @@ class BatteryManagerState:
         self._analyze_first_entry = first
 
     @property
+    def quiet_mode(self) -> bool:
+        return self._quiet_mode
+    
+    @quiet_mode.setter
+    def quiet_mode(self, _quiet_mode: bool) -> None:
+        self._force_full_charge = _quiet_mode
+
+    @property
     def default_config(self) -> "DeviceConfig":
         return self._default_config
     
@@ -217,7 +229,15 @@ class BatteryManagerState:
     @plug_full_charge_list.setter
     def plug_full_charge_list(self, list: List[str]) -> None:
         self._plug_full_charge_list = list    
-    
+
+    @property
+    def active_plugs(self) -> Set["ActivePlug"]:
+        return self._active_plugs
+
+    @active_plugs.setter
+    def active_plugs(self, plugs: Set["ActivePlug"]) -> None:
+        self._active_plugs = plugs    
+
 
 class CustomLogger(logging.Logger):
     '''
@@ -249,9 +269,6 @@ class ActivePlug():
     def __init__(self, plug_name: str, start_time: datetime):
         self.plug_name = plug_name
         self.start_time = start_time
-
-
-active_plugs: Set[ActivePlug] = set()
 
 
 class AnalyzeException(Exception):
@@ -821,12 +838,14 @@ def delete_plugs(battery_plug_list: list, plugs_to_delete: list) -> None:
 
 
 def set_active_plug(plug_name: str) -> None:
+    active_plugs: Set[ActivePlug] = BatteryManagerState().active_plugs
     if not any(plug_name == plug.plug_name for plug in active_plugs):
         active_plugs.add(ActivePlug(
             plug_name=plug_name, start_time=datetime.now()))
 
 
 def stop_active_plug(plug_name: str) -> None:
+    active_plugs: Set[ActivePlug] = BatteryManagerState().active_plugs
     active_plug: ActivePlug = next(
         (x for x in active_plugs if x.plug_name == plug_name), None)
     if active_plug:
@@ -842,8 +861,8 @@ async def analyze() -> bool:
     Returns:
         bool: True if we are actively charging at the exit of this function
     '''
-    global active_plugs
     global start_threshold_logger
+    active_plugs: Set[ActivePlug] = BatteryManagerState().active_plugs
     battery_plug_list = BatteryManagerState().battery_plug_list
 
     probe_interval_secs = BatteryManagerState().probe_interval_secs
@@ -959,7 +978,6 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
     Returns:
         bool: Normal exit indicating success or not
     '''
-    global max_runtime_exceeded
     probe_interval_secs: int = BatteryManagerState().probe_interval_secs
     battery_plug_list = BatteryManagerState().battery_plug_list
 
@@ -1293,13 +1311,11 @@ async def test_stuff() -> None:
 
 
 def start_quiet_mode() -> None:
-    global quiet_mode
-    if quiet_mode:
+    if BatteryManagerState().quiet_mode:
         logging.getLogger("").setLevel(logging.WARNING)
 
 
 def stop_quiet_mode() -> None:
-    global quiet_mode
     logging.getLogger("").setLevel(logging.INFO)
 
 
@@ -1338,10 +1354,12 @@ def run_battery_controller(max_hours_to_run: int,
         app_key (str): 
         test_mode (bool): 
     '''
+    global start_threshold_logger
+
     plug_full_charge_list = BatteryManagerState().plug_full_charge_list
-    global quiet_mode, start_threshold_logger
     device_config = BatteryManagerState().device_config
     plug_storage_list = BatteryManagerState().plug_storage_list
+    active_plugs: Set[ActivePlug] = BatteryManagerState().active_plugs
 
     logging.info(f'Script logs are in {log_file}')
     start = datetime.now()
@@ -1354,7 +1372,7 @@ def run_battery_controller(max_hours_to_run: int,
 
     logging.info('>>>>> START <<<<<')
     logging.info(f'  ---- test_mode: {str(test_mode)}')
-    logging.info(f'  ---- quiet_mode: {str(quiet_mode)}')
+    logging.info(f'  ---- quiet_mode: {str(BatteryManagerState().quiet_mode)}')
     logging.info(f'  ---- force_full_charge: {str(BatteryManagerState().force_full_charge)}')
     logging.info(
         f'  ---- full_charge_repeat_limit: {str(BatteryManagerState().full_charge_repeat_limit)}')
@@ -1461,7 +1479,6 @@ def setup_logging_handlers(log_file: str) -> list:
 
 
 def main() -> None:
-    global quiet_mode
     global start_threshold_logger
 
     nominal_charge_start_power_threshold = NOMINAL_CHARGE_START_THRESHOLD_DEFAULT
@@ -1557,7 +1574,7 @@ def main() -> None:
                 f'>>>>> OVERRIDE max_hours_to_run: {str(BatteryManagerState().max_hours_to_run)}')
         except (ValueError, TypeError, OverflowError) as e:
             logging.error(f'ERROR, Invalid max_hours_to_run {str(BatteryManagerState().max_hours_to_run)}, exception: {str(e)}')
-    quiet_mode = args.quiet_mode
+    BatteryManagerState().quiet_mode = args.quiet_mode
 
     # By here global default values for thresholds are valid so create the DEFAULT one
     BatteryManagerState().default_config = DeviceConfig(DEFAULT_CONFIG_TAG,

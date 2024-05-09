@@ -28,8 +28,8 @@ battery_plug_list = target.battery_plug_list
 DeviceConfig = target.DeviceConfig
 BatteryPlug = target.BatteryPlug
 BatteryStripPlug = target.BatteryStripPlug
-max_cycles_in_fine_mode = target.max_cycles_in_fine_mode
-default_config = target.default_config
+max_cycles_in_fine_mode = target.BatteryManagerState().max_cycles_in_fine_mode
+default_config = target.BatteryManagerState().default_config
 rad_config: DeviceConfig
 lectric_config: DeviceConfig
 

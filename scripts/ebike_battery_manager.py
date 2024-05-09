@@ -7,7 +7,7 @@ from email.message import EmailMessage
 from datetime import datetime, timedelta
 import logging
 import argparse
-from typing import Set, Union
+from typing import Set, Union, ForwardRef
 from os.path import isfile
 from enum import Enum
 import configparser
@@ -56,22 +56,145 @@ DEFAULT_MAX_RUNTIME_HOURS = 12
 MANDATORY_CONFIG_MANUFACTURER_TAGS = [FULL_CHARGE_THRESHOLD_TAG, COARSE_PROBE_THRESHOLD_MARGIN_TAG]
 ONE_OF_CONFIG_MANUFACTURER_TAGS = [NOMINAL_START_THRESHOLD_TAG, NOMINAL_STOP_THRESHOLD_TAG]
 
-full_charge_repeat_limit = FULL_CHARGE_REPEAT_LIMIT
-fine_probe_interval_secs = 5 * 60
-probe_interval_secs = COARSE_PROBE_INTERVAL_SECS
-max_cycles_in_fine_mode = 20
-force_full_charge = False
-max_hours_to_run = DEFAULT_MAX_RUNTIME_HOURS
-storage_charge_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
+# full_charge_repeat_limit = FULL_CHARGE_REPEAT_LIMIT
+# fine_probe_interval_secs = 5 * 60
+# probe_interval_secs = COARSE_PROBE_INTERVAL_SECS
+# max_cycles_in_fine_mode = 20
+# force_full_charge = False
+# max_hours_to_run = DEFAULT_MAX_RUNTIME_HOURS
+# storage_charge_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
 
 battery_plug_list = []
 device_config = {}
 plug_manufacturer_map = {}
 plug_storage_list = []
 plug_full_charge_list = []
-quiet_logging_mode: bool = False
-analyze_first_entry = True
-default_config = None
+# analyze_first_entry = True
+# default_config = None
+
+class BatteryManagerState:
+    '''
+    Singleton class to encapsulate global state
+
+    Raises:
+        BatteryPlugException: _description_
+        BatteryPlugException: _description_
+        BatteryPlugException: _description_
+        BatteryPlugException: _description_
+        AnalyzeException: _description_
+
+    Returns:
+        _type_: _description_
+    '''
+    _instance = None
+
+    _full_charge_repeat_limit: int
+    _fine_probe_interval_secs: int
+    _probe_interval_secs: int
+    _max_cycles_in_fine_mode: int
+    _force_full_charge: bool
+    _max_hours_to_run: int
+    _storage_charge_cycle_limit: int
+    _analyze_first_entry: bool
+    _default_config: "DeviceConfig"
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._full_charge_repeat_limit = FULL_CHARGE_REPEAT_LIMIT
+            cls._instance._fine_probe_interval_secs = 5 * 60
+            cls._instance._probe_interval_secs = COARSE_PROBE_INTERVAL_SECS
+            cls._instance._max_cycles_in_fine_mode = 20
+            cls._instance._force_full_charge = False
+            cls._instance._max_hours_to_run = DEFAULT_MAX_RUNTIME_HOURS
+            cls._instance._storage_charge_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
+            cls._instance.battery_plug_list = []
+            cls._instance.device_config = {}
+            cls._instance.plug_manufacturer_map = {}
+            cls._instance.plug_storage_list = []
+            cls._instance.plug_full_charge_list = []
+            cls._instance._analyze_first_entry = True
+            cls._instance._default_config = None
+        return cls._instance
+
+    def add_plug(self, plug):
+        self.battery_plug_list.append(plug)
+
+    def remove_plug(self, plug):
+        self.battery_plug_list.remove(plug)
+
+    @property
+    def full_charge_repeat_limit(self) -> int:
+        return self._full_charge_repeat_limit
+    
+    @full_charge_repeat_limit.setter
+    def full_charge_repeat_limit(self, limit: int)  -> None:
+        self._full_charge_repeat_limit = limit
+
+    @property
+    def fine_probe_interval_secs(self) -> int:
+        return self._fine_probe_interval_secs
+    
+    @fine_probe_interval_secs.setter
+    def fine_probe_interval_secs(self, seconds: int) -> None:
+        self._fine_probe_interval_secs = seconds
+
+    @property
+    def probe_interval_secs(self) -> int:
+        return self._probe_interval_secs
+    
+    @probe_interval_secs.setter
+    def probe_interval_secs(self, seconds: int) -> None:
+        self._probe_interval_secs = seconds
+
+    @property
+    def max_cycles_in_fine_mode(self) -> int:
+        return self._max_cycles_in_fine_mode
+    
+    @max_cycles_in_fine_mode.setter
+    def max_cycles_in_fine_mode(self, cycles: int) -> None:
+        self._max_cycles_in_fine_mode = cycles
+
+    @property
+    def force_full_charge(self) -> bool:
+        return self._force_full_charge
+    
+    @force_full_charge.setter
+    def force_full_charge(self, force_full_charge: bool) -> None:
+        self._force_full_charge = force_full_charge
+
+    @property
+    def max_hours_to_run(self) -> int:
+        return self._max_hours_to_run
+    
+    @max_hours_to_run.setter
+    def max_hours_to_run(self, hours: int) -> None:
+        self._max_hours_to_run = hours
+
+    @property
+    def storage_charge_cycle_limit(self) -> int:
+        return self._storage_charge_cycle_limit
+    
+    @storage_charge_cycle_limit.setter
+    def storage_charge_cycle_limit(self, cycle_limit: int) -> None:
+        self._storage_charge_cycle_limit = cycle_limit
+
+    @property
+    def analyze_first_entry(self) -> bool:
+        return self._analyze_first_entry
+    
+    @analyze_first_entry.setter
+    def analyze_first_entry(self, first: bool) -> None:
+        self._analyze_first_entry = first
+
+    @property
+    def default_config(self) -> "DeviceConfig":
+        return self._default_config
+    
+    @default_config.setter
+    def default_config(self, config: "DeviceConfig") -> None:
+        self._default_config = config
+
 
 class CustomLogger(logging.Logger):
     '''
@@ -167,7 +290,6 @@ class BatteryPlug():
     battery_charge_stop_time: datetime
 
     def __init__(self, name: str, device: SmartDevice, max_cycles_in_fine_mode: int, config: DeviceConfig):
-        global max_hours_to_run
         self.name = name
         self.device = device
         self.battery_found = False
@@ -500,16 +622,16 @@ def create_battery_plug(plug_name: str, smart_device: SmartDevice) -> BatteryPlu
     Returns:
         BatteryPlug: The BatteryPlug instance will have the appropriate BatteryChargeMode set
     '''
-    global max_cycles_in_fine_mode, plug_storage_list, plug_full_charge_list, storage_charge_cycle_limit, force_full_charge
+    global plug_storage_list, plug_full_charge_list
     plug: BatteryPlug = BatteryPlug(
-        plug_name, smart_device, max_cycles_in_fine_mode, get_device_config(plug_name))
+        plug_name, smart_device, BatteryManagerState().max_cycles_in_fine_mode, get_device_config(plug_name))
     if plug_name in plug_storage_list:
         plug.set_battery_charge_mode(BatteryChargeMode.STORAGE)
     elif plug_name in plug_full_charge_list:
         plug.set_battery_charge_mode(BatteryChargeMode.FULL)
     else:
         plug.set_battery_charge_mode(
-            BatteryChargeMode.FULL if force_full_charge else BatteryChargeMode.NOMINAL)
+            BatteryChargeMode.FULL if BatteryManagerState().force_full_charge else BatteryChargeMode.NOMINAL)
     return plug
 
 
@@ -525,16 +647,16 @@ def create_battery_strip_plug(plug_name: str, smart_device: SmartDevice, index: 
     Returns:
         BatteryStripPlug: The BatteryStripPlug instance will have the appropriate BatteryChargeMode set
     '''
-    global max_cycles_in_fine_mode, plug_storage_list, storage_charge_cycle_limit, force_full_charge
+    global plug_storage_list
     plug: BatteryStripPlug = BatteryStripPlug(
-        plug_name, smart_device, index, max_cycles_in_fine_mode, get_device_config(plug_name))
+        plug_name, smart_device, index, BatteryManagerState().max_cycles_in_fine_mode, get_device_config(plug_name))
     if plug_name in plug_storage_list:
         plug.set_battery_charge_mode(BatteryChargeMode.STORAGE)
     elif plug_name in plug_full_charge_list:
         plug.set_battery_charge_mode(BatteryChargeMode.FULL)
     else:
         plug.set_battery_charge_mode(
-            BatteryChargeMode.FULL if force_full_charge else BatteryChargeMode.NOMINAL)
+            BatteryChargeMode.FULL if BatteryManagerState().force_full_charge else BatteryChargeMode.NOMINAL)
     return plug
 
 
@@ -695,14 +817,15 @@ async def analyze() -> bool:
     Returns:
         bool: True if we are actively charging at the exit of this function
     '''
-    global probe_interval_secs
+    # global probe_interval_secs
     global battery_plug_list
     global active_plugs
     global start_threshold_logger
-    global analyze_first_entry
+
+    probe_interval_secs = BatteryManagerState().probe_interval_secs
 
     logging.info(
-        f'>>>>> analyze --> probe_interval_secs: {str(probe_interval_secs)}, analyze_first_entry: {str(analyze_first_entry)} <<<<<')
+        f'>>>>> analyze --> probe_interval_secs: {str(probe_interval_secs)}, analyze_first_entry: {str(BatteryManagerState().analyze_first_entry)} <<<<<')
     actively_charging = False
 
     def set_actively_charging(plug: BatteryPlug) -> None:
@@ -717,6 +840,7 @@ async def analyze() -> bool:
     # where we dropped into a fine_probe_interval_secs for one battery and that battery finished
     # but the remaining battery is still in the range for COARSE_PROBE_INTERVAL_SECS
     # At the end of the loop, check next_probe_interval_secs against probe_interval_secs
+    fine_probe_interval_secs: int = BatteryManagerState().fine_probe_interval_secs
     next_probe_interval_secs = COARSE_PROBE_INTERVAL_SECS
     plugs_to_delete = []
 
@@ -742,7 +866,7 @@ async def analyze() -> bool:
 
         device_power_consumption = plug.get_power()
         logging.info(plug_name + ': ' + str(device_power_consumption))
-        if analyze_first_entry:
+        if BatteryManagerState().analyze_first_entry:
             start_threshold_logger.info(
                 plug_name + ': ' + str(device_power_consumption))
             if not plug.start_threshold_check(device_power_consumption):
@@ -768,7 +892,7 @@ async def analyze() -> bool:
             continue
 
         # By here check if we should switch to fine_probe_interval to detect charged state sooner
-        if not plug.fine_mode_active and next_probe_interval_secs > fine_probe_interval_secs and device_power_consumption < plug.get_coarse_probe_threshold():
+        if not plug.fine_mode_active and next_probe_interval_secs > BatteryManagerState().fine_probe_interval_secs and device_power_consumption < plug.get_coarse_probe_threshold():
             plug.fine_mode_active = True
             logging.info(
                 f'{plug_name}: fine probe interval ({str(fine_probe_interval_secs)}) secs is now ON')
@@ -784,13 +908,13 @@ async def analyze() -> bool:
 
         set_actively_charging(plug)
 
-    analyze_first_entry = False
+    BatteryManagerState().analyze_first_entry = False
     delete_plugs(battery_plug_list, plugs_to_delete)
 
     if actively_charging and (probe_interval_secs != next_probe_interval_secs):
         logging.info(
             f'Switch to probe_interval_secs: {str(next_probe_interval_secs)} from: {str(probe_interval_secs)}')
-        probe_interval_secs = next_probe_interval_secs
+        BatteryManagerState().probe_interval_secs = next_probe_interval_secs
     return actively_charging
 
 
@@ -811,7 +935,9 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
     Returns:
         bool: Normal exit indicating success or not
     '''
-    global max_hours_to_run, probe_interval_secs, max_runtime_exceeded
+    global max_runtime_exceeded
+    probe_interval_secs: int = BatteryManagerState().probe_interval_secs
+
     retry_limit = RETRY_LIMIT
     success = False
     force_log(f'analyze_loop: START')
@@ -819,7 +945,7 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
         # check absolute stop limit
         if datetime.now() > final_stop_time:
             logging.error(
-                f"max runtime {max_hours_to_run} hours exceeded, exit analyze_loop")
+                f"max runtime {BatteryManagerState().max_hours_to_run} hours exceeded, exit analyze_loop")
             break
         try:
             battery_plug_ct = await init()
@@ -928,7 +1054,7 @@ def verify_config_file(config_file_name: str) -> bool:
     Returns:
         bool: Normal exit indicating success in parsing the config file
     '''
-    global device_config, plug_manufacturer_map, plug_storage_list, plug_full_charge_list, max_hours_to_run
+    global device_config, plug_manufacturer_map, plug_storage_list, plug_full_charge_list
     try:
         verified = True
         if isfile(config_file_name):
@@ -981,7 +1107,7 @@ def verify_config_file(config_file_name: str) -> bool:
                     battery_amp_hour_capacity = float(
                         config_parser[manufacturer][BATTERY_AMP_HOUR_CAPACITY_TAG]) if BATTERY_AMP_HOUR_CAPACITY_TAG in config_parser[manufacturer] else 0.0
                     charger_max_hours_to_run = ceil(
-                        battery_amp_hour_capacity / charger_amp_hour_rate) if charger_amp_hour_rate > 0.0 and battery_amp_hour_capacity > 0.0 else max_hours_to_run
+                        battery_amp_hour_capacity / charger_amp_hour_rate) if charger_amp_hour_rate > 0.0 and battery_amp_hour_capacity > 0.0 else BatteryManagerState().max_hours_to_run
                     device_config[manufacturer] = DeviceConfig(manufacturer,
                                                                        nominal_charge_start_power_threshold,
                                                                        nominal_charge_stop_power_threshold,
@@ -1092,7 +1218,7 @@ async def test_stuff() -> None:
     Internal test with real devices
     Used in lieu of an actual async test layer
     '''
-    global max_cycles_in_fine_mode
+    max_cycles_in_fine_mode: int = BatteryManagerState().max_cycles_in_fine_mode
     logging.info('test_stuff: ENTRY')
     battery_plug_list = []
     test_remove = []
@@ -1181,8 +1307,8 @@ def run_battery_controller(max_hours_to_run: int,
         app_key (str): 
         test_mode (bool): 
     '''
-    global battery_plug_list, plug_storage_list, plug_full_charge_list, default_config
-    global device_config, force_full_charge, quiet_mode, start_threshold_logger
+    global battery_plug_list, plug_storage_list, plug_full_charge_list
+    global device_config, quiet_mode, start_threshold_logger
 
     logging.info(f'Script logs are in {log_file}')
     start = datetime.now()
@@ -1190,16 +1316,17 @@ def run_battery_controller(max_hours_to_run: int,
     config_file_is_valid = False
     if config_file != None:
         config_file_is_valid = verify_config_file(config_file)
+    default_config: DeviceConfig = BatteryManagerState().default_config
     device_config[DEFAULT_CONFIG_TAG] = default_config
 
     logging.info('>>>>> START <<<<<')
     logging.info(f'  ---- test_mode: {str(test_mode)}')
     logging.info(f'  ---- quiet_mode: {str(quiet_mode)}')
-    logging.info(f'  ---- force_full_charge: {str(force_full_charge)}')
+    logging.info(f'  ---- force_full_charge: {str(BatteryManagerState().force_full_charge)}')
     logging.info(
-        f'  ---- full_charge_repeat_limit: {str(full_charge_repeat_limit)}')
+        f'  ---- full_charge_repeat_limit: {str(BatteryManagerState().full_charge_repeat_limit)}')
     logging.info(
-        f'  ---- max_cycles_in_fine_mode: {str(max_cycles_in_fine_mode)}')
+        f'  ---- max_cycles_in_fine_mode: {str(BatteryManagerState().max_cycles_in_fine_mode)}')
     logging.info(f'  ---- max_hours_to_run: {str(max_hours_to_run)}')
     logging.info(f'  ---- logfile: {str(log_file)}')
     logging.info(f'  ---- config_file: {str(config_file)}')
@@ -1215,7 +1342,7 @@ def run_battery_controller(max_hours_to_run: int,
     logging.info(
         f'  -------- storage_charge_stop_power_threshold: {str(default_config.storage_charge_stop_power_threshold)}')
     logging.info(
-        f'  -------- storage_charge_cycle_limit: {str(storage_charge_cycle_limit)}')
+        f'  -------- storage_charge_cycle_limit: {str(BatteryManagerState().storage_charge_cycle_limit)}')
     if config_file_is_valid:
         logging.info(f'  ---- MANUFACTURER specific thresholds')
         for manufacturer in device_config:
@@ -1301,13 +1428,8 @@ def setup_logging_handlers(log_file: str) -> list:
 
 
 def main() -> None:
-    global force_full_charge
-    global max_cycles_in_fine_mode, max_hours_to_run
-    global full_charge_repeat_limit
-    global storage_charge_cycle_limit
     global quiet_mode
     global start_threshold_logger
-    global default_config
 
     nominal_charge_start_power_threshold = NOMINAL_CHARGE_START_THRESHOLD_DEFAULT
     nominal_charge_stop_power_threshold = NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT
@@ -1331,7 +1453,7 @@ def main() -> None:
         handlers=logging_handlers
     )
 
-    force_full_charge = args.force_full_charge
+    BatteryManagerState().force_full_charge = args.force_full_charge
 
     # overrides
     if args.nominal_start_charge_threshold != None:
@@ -1376,48 +1498,48 @@ def main() -> None:
             logging.error(f'ERROR, Invalid storage_charge_stop_power_threshold: {str(e)}')
     if args.full_charge_repeat_limit != None:
         try:
-            full_charge_repeat_limit = args.full_charge_repeat_limit
+            BatteryManagerState().full_charge_repeat_limit = args.full_charge_repeat_limit
             logging.info(
-                f'>>>>> OVERRIDE full_charge_repeat_limit: {str(full_charge_repeat_limit)}')
+                f'>>>>> OVERRIDE full_charge_repeat_limit: {str(BatteryManagerState().full_charge_repeat_limit)}')
         except (ValueError, TypeError, OverflowError) as e:
             logging.error(f'ERROR, Invalid full_charge_repeat_limit: {str(e)}')
     if args.max_cycles_in_fine_mode != None:
         try:
-            max_cycles_in_fine_mode = args.max_cycles_in_fine_mode
+            BatteryManagerState().max_cycles_in_fine_mode = args.max_cycles_in_fine_mode
             logging.info(
-                f'>>>>> OVERRIDE max_cycles_in_fine_mode: {str(max_cycles_in_fine_mode)}')
+                f'>>>>> OVERRIDE max_cycles_in_fine_mode: {str(BatteryManagerState().max_cycles_in_fine_mode)}')
         except (ValueError, TypeError, OverflowError) as e:
             logging.error(f'ERROR, Invalid max_cycles_in_fine_mode: {str(e)}')
     if args.storage_charge_cycle_limit != None:
         try:
-            storage_charge_cycle_limit = args.storage_charge_cycle_limit
+            BatteryManagerState().storage_charge_cycle_limit = args.storage_charge_cycle_limit
             logging.info(
-                f'>>>>> OVERRIDE storage_charge_cycle_limit: {str(storage_charge_cycle_limit)}')
+                f'>>>>> OVERRIDE storage_charge_cycle_limit: {str(BatteryManagerState().storage_charge_cycle_limit)}')
         except (ValueError, TypeError, OverflowError) as e:
             logging.error(f'ERROR, Invalid storage_charge_cycle_limit: {str(e)}')
     if args.max_hours_to_run != None:
         try:
-            max_hours_to_run = args.max_hours_to_run
+            BatteryManagerState().max_hours_to_run = args.max_hours_to_run
             logging.info(
-                f'>>>>> OVERRIDE max_hours_to_run: {str(max_hours_to_run)}')
+                f'>>>>> OVERRIDE max_hours_to_run: {str(BatteryManagerState().max_hours_to_run)}')
         except (ValueError, TypeError, OverflowError) as e:
-            logging.error(f'ERROR, Invalid max_hours_to_run: {str(e)}')
+            logging.error(f'ERROR, Invalid max_hours_to_run {str(BatteryManagerState().max_hours_to_run)}, exception: {str(e)}')
     quiet_mode = args.quiet_mode
 
     # By here global default values for thresholds are valid so create the DEFAULT one
-    default_config = DeviceConfig(DEFAULT_CONFIG_TAG,
+    BatteryManagerState().default_config = DeviceConfig(DEFAULT_CONFIG_TAG,
                                           nominal_charge_start_power_threshold,
                                           nominal_charge_stop_power_threshold,
                                           full_charge_power_threshold,
                                           storage_charge_start_power_threshold,
                                           storage_charge_stop_power_threshold,
-                                          storage_charge_cycle_limit,
+                                          BatteryManagerState().storage_charge_cycle_limit,
                                           COARSE_PROBE_THRESHOLD_MARGIN,
                                           0.0,
                                           0.0,
                                           DEFAULT_MAX_RUNTIME_HOURS
                                           )
-    run_battery_controller(max_hours_to_run,
+    run_battery_controller(BatteryManagerState().max_hours_to_run,
                            log_file,
                            args.config_file,
                            args.email,

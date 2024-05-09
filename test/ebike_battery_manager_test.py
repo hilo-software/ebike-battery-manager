@@ -24,7 +24,7 @@ RAD_MANUFACTURER_NAME = 'Rad'
 
 target = __import__("scripts.ebike_battery_manager")
 target = target.ebike_battery_manager
-battery_plug_list = target.battery_plug_list
+battery_plug_list = target.BatteryManagerState().battery_plug_list
 DeviceConfig = target.DeviceConfig
 BatteryPlug = target.BatteryPlug
 BatteryStripPlug = target.BatteryStripPlug
@@ -65,10 +65,10 @@ def execute_before_any_test():
                                       ceil(LECTRIC_BATTERY_AMP_HOUR_CAPACITY /
                                            LECTRIC_CHARGER_AMP_HOUR_RATE)
                                       )
-    target.device_config['Rad'] = rad_config
-    target.device_config['Lectric'] = lectric_config
+    target.BatteryManagerState().device_config['Rad'] = rad_config
+    target.BatteryManagerState().device_config['Lectric'] = lectric_config
     create_default_device_config()
-    # target.device_config[target.DEFAULT_CONFIG_TAG] = DeviceConfig(
+    # target.BatteryManagerState().device_config[target.DEFAULT_CONFIG_TAG] = DeviceConfig(
     #     target.DEFAULT_CONFIG_TAG,
     #     target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT,
     #     target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT,
@@ -86,7 +86,7 @@ def execute_before_any_test():
     battery_plug_list.append(BatteryPlug('battery_2', target.SmartDevice('127.0.0.1'), max_cycles_in_fine_mode, rad_config))
 
 def create_default_device_config() -> None:
-    target.device_config[target.DEFAULT_CONFIG_TAG] = DeviceConfig(
+    target.BatteryManagerState().device_config[target.DEFAULT_CONFIG_TAG] = DeviceConfig(
         target.DEFAULT_CONFIG_TAG,
         target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT,
         target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT,
@@ -103,21 +103,21 @@ def create_default_device_config() -> None:
 def test_fixture_init():
     print(f'fake, battery_plug_list')
     assert len(battery_plug_list) > 0
-    assert len(target.device_config) == 3
+    assert len(target.BatteryManagerState().device_config) == 3
 
 def reset_device_config():
-    target.device_config.clear()
-    target.plug_manufacturer_map.clear()
+    target.BatteryManagerState().device_config.clear()
+    target.BatteryManagerState().plug_manufacturer_map.clear()
     create_default_device_config()
-    # target.device_config[target.DEFAULT_CONFIG_TAG] = target.default_config
+    # target.BatteryManagerState().device_config[target.DEFAULT_CONFIG_TAG] = target.default_config
 
 def set_sample_thresholds():
     reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
-    assert len(target.device_config) == 3
-    assert len(target.plug_manufacturer_map) == 5
-    assert len(target.plug_storage_list) == 1
+    assert len(target.BatteryManagerState().device_config) == 3
+    assert len(target.BatteryManagerState().plug_manufacturer_map) == 5
+    assert len(target.BatteryManagerState().plug_storage_list) == 1
 
 def test_setup_logging_handlers():
     # Passing a null filename will cause an exception and the 
@@ -133,19 +133,19 @@ def test_verify_config_file():
     reset_device_config()
     result = target.verify_config_file('not_a_real_file.config')
     assert result == False
-    assert len(target.plug_manufacturer_map) == 0
+    assert len(target.BatteryManagerState().plug_manufacturer_map) == 0
     reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
-    assert len(target.device_config) == 3
-    assert len(target.plug_manufacturer_map) == 5
-    assert len(target.plug_storage_list) == 1
+    assert len(target.BatteryManagerState().device_config) == 3
+    assert len(target.BatteryManagerState().plug_manufacturer_map) == 5
+    assert len(target.BatteryManagerState().plug_storage_list) == 1
     reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'error_battery_plug_file.config')
     assert result == False
-    assert len(target.device_config) == 3
-    assert len(target.plug_manufacturer_map) == 5
-    assert target.plug_manufacturer_map['rad_battery_3'] == target.DEFAULT_CONFIG_TAG
+    assert len(target.BatteryManagerState().device_config) == 3
+    assert len(target.BatteryManagerState().plug_manufacturer_map) == 5
+    assert target.BatteryManagerState().plug_manufacturer_map['rad_battery_3'] == target.DEFAULT_CONFIG_TAG
 
 @pytest.mark.asyncio
 async def test_battery_plug_exception():
@@ -203,22 +203,22 @@ async def test_battery_strip_plug_exception():
 async def test_update_battery_plug_list():
     with patch('kasa.SmartDevice', new_callable=AsyncMock) as mock:
         reset_device_config()
-        save_battery_plug_list = target.battery_plug_list
-        target.battery_plug_list = []
+        save_battery_plug_list = target.BatteryManagerState().battery_plug_list
+        target.BatteryManagerState().battery_plug_list = []
         mock_smart_device_plug = mock.return_value
         mock_smart_device_plug.is_plug = True
         mock_smart_device_plug.is_strip = False
         mock_smart_device_plug.alias = 'rad_battery_1'
         assert mock_smart_device_plug.is_plug == True
         assert mock_smart_device_plug.alias == 'rad_battery_1'
-        assert len(target.battery_plug_list) == 0
+        assert len(target.BatteryManagerState().battery_plug_list) == 0
         result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
         assert result == True
-        manufacturer_plug_names = target.plug_manufacturer_map.keys()
+        manufacturer_plug_names = target.BatteryManagerState().plug_manufacturer_map.keys()
         assert mock_smart_device_plug.alias in manufacturer_plug_names
-        assert len(target.battery_plug_list) == 0
+        assert len(target.BatteryManagerState().battery_plug_list) == 0
         await target.update_battery_plug_list(mock_smart_device_plug, manufacturer_plug_names)
-        assert len(target.battery_plug_list) == 1
+        assert len(target.BatteryManagerState().battery_plug_list) == 1
         mock_smart_device_strip = mock.return_value
         mock_smart_device_strip.is_plug = False
         mock_smart_device_strip.is_strip = True
@@ -230,8 +230,8 @@ async def test_update_battery_plug_list():
         mock_strip_children[1].alias = 'lectric_battery_2'
         mock_smart_device_strip.children = mock_strip_children
         await target.update_battery_plug_list(mock_smart_device_strip, manufacturer_plug_names)
-        assert len(target.battery_plug_list) == 3
-        target.battery_plug_list = save_battery_plug_list
+        assert len(target.BatteryManagerState().battery_plug_list) == 3
+        target.BatteryManagerState().battery_plug_list = save_battery_plug_list
 
 @pytest.mark.asyncio
 async def test_update_battery_plug_list_config_name_not_battery():
@@ -241,23 +241,23 @@ async def test_update_battery_plug_list_config_name_not_battery():
         plug_manufacturer_map['rad_power_1'] = 100
         plug_manufacturer_map['lectric_1'] = 101
         plug_manufacturer_map['lectric_2'] = 102
-        save_battery_plug_list = target.battery_plug_list
-        target.battery_plug_list = []
+        save_battery_plug_list = target.BatteryManagerState().battery_plug_list
+        target.BatteryManagerState().battery_plug_list = []
         mock_smart_device_plug = mock.return_value
         mock_smart_device_plug.is_plug = True
         mock_smart_device_plug.is_strip = False
         mock_smart_device_plug.alias = 'rad_power_1'
         assert mock_smart_device_plug.is_plug == True
         assert mock_smart_device_plug.alias == 'rad_power_1'
-        assert len(target.battery_plug_list) == 0
+        assert len(target.BatteryManagerState().battery_plug_list) == 0
         result = target.verify_config_file(CONFIG_PATH + 'test.config')
         assert result == True
         manufacturer_plug_names = plug_manufacturer_map.keys()
         assert mock_smart_device_plug.alias in manufacturer_plug_names
-        assert len(target.battery_plug_list) == 0
+        assert len(target.BatteryManagerState().battery_plug_list) == 0
         assert len(manufacturer_plug_names) == 3
         await target.update_battery_plug_list(mock_smart_device_plug, manufacturer_plug_names)
-        assert len(target.battery_plug_list) == 1
+        assert len(target.BatteryManagerState().battery_plug_list) == 1
         mock_smart_device_strip = mock.return_value
         mock_smart_device_strip.is_plug = False
         mock_smart_device_strip.is_strip = True
@@ -269,23 +269,23 @@ async def test_update_battery_plug_list_config_name_not_battery():
         mock_strip_children[1].alias = 'lectric_2'
         mock_smart_device_strip.children = mock_strip_children
         await target.update_battery_plug_list(mock_smart_device_strip, manufacturer_plug_names)
-        assert len(target.battery_plug_list) == 3
-        target.battery_plug_list = save_battery_plug_list
+        assert len(target.BatteryManagerState().battery_plug_list) == 3
+        target.BatteryManagerState().battery_plug_list = save_battery_plug_list
 
 def setup_sample_config():
     reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
-    assert len(target.device_config) == 3
-    assert len(target.plug_manufacturer_map) == 5
-    assert len(target.plug_storage_list) == 1
+    assert len(target.BatteryManagerState().device_config) == 3
+    assert len(target.BatteryManagerState().plug_manufacturer_map) == 5
+    assert len(target.BatteryManagerState().plug_storage_list) == 1
 
 def verify_plug(plug: BatteryPlug, start_nominal: float, stop_nominal: float, storage: float, full: float) -> None:
     plug_name = plug.name
     time_difference = plug.battery_charge_stop_time - plug.battery_charge_start_time
     hours_difference = ceil(time_difference.total_seconds() / 3600)
     assert(hours_difference == plug.config.charger_max_hours_to_run)    
-    if plug_name in target.plug_storage_list:
+    if plug_name in target.BatteryManagerState().plug_storage_list:
         assert plug.battery_charge_mode == target.BatteryChargeMode.STORAGE
         assert plug.config.storage_charge_stop_power_threshold == storage
         assert plug.get_active_charge_battery_power_threshold() == storage
@@ -293,7 +293,7 @@ def verify_plug(plug: BatteryPlug, start_nominal: float, stop_nominal: float, st
         assert plug.charge_threshold_passed == False
         assert plug.check_storage_mode() == True
         assert plug.charge_threshold_passed == True
-    elif plug_name in target.plug_full_charge_list:
+    elif plug_name in target.BatteryManagerState().plug_full_charge_list:
         assert plug.battery_charge_mode == target.BatteryChargeMode.FULL
         assert plug.get_start_power_threshold() == full
         assert plug.get_active_charge_battery_power_threshold() == full
@@ -312,20 +312,20 @@ def test_storage_mode():
     reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
-    assert len(target.device_config) == 3
-    assert len(target.plug_manufacturer_map) == 5
-    assert len(target.plug_storage_list) == 1
-    assert target.device_config['Rad'].nominal_charge_start_power_threshold == 90.0
-    assert target.device_config['Rad'].nominal_charge_stop_power_threshold == 45.0
-    assert target.device_config['Rad'].full_charge_power_threshold == 5.0
-    assert target.device_config['Rad'].storage_charge_start_power_threshold == 115.0
-    assert target.device_config['Rad'].storage_charge_stop_power_threshold == 115.0
-    assert target.device_config['Lectric'].nominal_charge_start_power_threshold == 40.0
-    assert target.device_config['Lectric'].nominal_charge_stop_power_threshold == 40.0
-    assert target.device_config['Lectric'].full_charge_power_threshold == 10.0
-    assert target.device_config['Lectric'].storage_charge_start_power_threshold == target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT
-    assert target.device_config['Lectric'].storage_charge_stop_power_threshold == target.STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT
-    for plug_name in list(target.plug_manufacturer_map.keys()):
+    assert len(target.BatteryManagerState().device_config) == 3
+    assert len(target.BatteryManagerState().plug_manufacturer_map) == 5
+    assert len(target.BatteryManagerState().plug_storage_list) == 1
+    assert target.BatteryManagerState().device_config['Rad'].nominal_charge_start_power_threshold == 90.0
+    assert target.BatteryManagerState().device_config['Rad'].nominal_charge_stop_power_threshold == 45.0
+    assert target.BatteryManagerState().device_config['Rad'].full_charge_power_threshold == 5.0
+    assert target.BatteryManagerState().device_config['Rad'].storage_charge_start_power_threshold == 115.0
+    assert target.BatteryManagerState().device_config['Rad'].storage_charge_stop_power_threshold == 115.0
+    assert target.BatteryManagerState().device_config['Lectric'].nominal_charge_start_power_threshold == 40.0
+    assert target.BatteryManagerState().device_config['Lectric'].nominal_charge_stop_power_threshold == 40.0
+    assert target.BatteryManagerState().device_config['Lectric'].full_charge_power_threshold == 10.0
+    assert target.BatteryManagerState().device_config['Lectric'].storage_charge_start_power_threshold == target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT
+    assert target.BatteryManagerState().device_config['Lectric'].storage_charge_stop_power_threshold == target.STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT
+    for plug_name in list(target.BatteryManagerState().plug_manufacturer_map.keys()):
         print(f'test_storage_mode:plug_name: {plug_name}')
         if 'rad' in plug_name:
             plug: target.BatteryPlug = target.create_battery_plug(plug_name, any)
@@ -345,9 +345,9 @@ def test_full_charge_mode():
     reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'test.config')
     assert result == True
-    assert len(target.plug_storage_list) == 2
-    assert len(target.plug_full_charge_list) == 1
-    assert 'rad_battery_1' in target.plug_full_charge_list
+    assert len(target.BatteryManagerState().plug_storage_list) == 2
+    assert len(target.BatteryManagerState().plug_full_charge_list) == 1
+    assert 'rad_battery_1' in target.BatteryManagerState().plug_full_charge_list
 
 def test_get_device_config():
     set_sample_thresholds()
@@ -439,7 +439,7 @@ def test_start_threshold_check():
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
     plugs = []
-    for plug_name in list(target.plug_manufacturer_map.keys()):
+    for plug_name in list(target.BatteryManagerState().plug_manufacturer_map.keys()):
         if 'rad' in plug_name:
             plug: target.BatteryPlug = target.create_battery_plug(plug_name, any)
             verify_plug(plug, 90.0, 45.0, 115.0, 5.0)

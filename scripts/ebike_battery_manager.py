@@ -7,7 +7,7 @@ from email.message import EmailMessage
 from datetime import datetime, timedelta
 import logging
 import argparse
-from typing import Set, Union, ForwardRef
+from typing import Set, Union, ForwardRef, Dict, List
 from os.path import isfile
 from enum import Enum
 import configparser
@@ -56,22 +56,6 @@ DEFAULT_MAX_RUNTIME_HOURS = 12
 MANDATORY_CONFIG_MANUFACTURER_TAGS = [FULL_CHARGE_THRESHOLD_TAG, COARSE_PROBE_THRESHOLD_MARGIN_TAG]
 ONE_OF_CONFIG_MANUFACTURER_TAGS = [NOMINAL_START_THRESHOLD_TAG, NOMINAL_STOP_THRESHOLD_TAG]
 
-# full_charge_repeat_limit = FULL_CHARGE_REPEAT_LIMIT
-# fine_probe_interval_secs = 5 * 60
-# probe_interval_secs = COARSE_PROBE_INTERVAL_SECS
-# max_cycles_in_fine_mode = 20
-# force_full_charge = False
-# max_hours_to_run = DEFAULT_MAX_RUNTIME_HOURS
-# storage_charge_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
-
-battery_plug_list = []
-device_config = {}
-plug_manufacturer_map = {}
-plug_storage_list = []
-plug_full_charge_list = []
-# analyze_first_entry = True
-# default_config = None
-
 class BatteryManagerState:
     '''
     Singleton class to encapsulate global state
@@ -97,6 +81,11 @@ class BatteryManagerState:
     _storage_charge_cycle_limit: int
     _analyze_first_entry: bool
     _default_config: "DeviceConfig"
+    _device_config: Dict[str, "DeviceConfig"]
+    _plug_manufacturer_map: Dict[str, str]
+    _battery_plug_list: List[Union["BatteryPlug", "BatteryStripPlug"]]
+    _plug_storage_list: List[str]
+    _plug_full_charge_list: List[str]
 
     def __new__(cls):
         if cls._instance is None:
@@ -108,20 +97,14 @@ class BatteryManagerState:
             cls._instance._force_full_charge = False
             cls._instance._max_hours_to_run = DEFAULT_MAX_RUNTIME_HOURS
             cls._instance._storage_charge_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
-            cls._instance.battery_plug_list = []
-            cls._instance.device_config = {}
-            cls._instance.plug_manufacturer_map = {}
-            cls._instance.plug_storage_list = []
-            cls._instance.plug_full_charge_list = []
+            cls._instance._battery_plug_list = []
+            cls._instance._device_config = {}
+            cls._instance._plug_manufacturer_map = {}
+            cls._instance._plug_storage_list = []
+            cls._instance._plug_full_charge_list = []
             cls._instance._analyze_first_entry = True
             cls._instance._default_config = None
         return cls._instance
-
-    def add_plug(self, plug):
-        self.battery_plug_list.append(plug)
-
-    def remove_plug(self, plug):
-        self.battery_plug_list.remove(plug)
 
     @property
     def full_charge_repeat_limit(self) -> int:
@@ -195,6 +178,46 @@ class BatteryManagerState:
     def default_config(self, config: "DeviceConfig") -> None:
         self._default_config = config
 
+    @property
+    def device_config(self) -> Dict[str, "DeviceConfig"]:
+        return self._device_config
+    
+    @device_config.setter
+    def device_config(self, map: Dict[str, "DeviceConfig"]) -> None:
+        self._device_config = map
+    
+    @property
+    def plug_manufacturer_map(self) -> Dict[str, str]:
+        return self._plug_manufacturer_map
+    
+    @plug_manufacturer_map.setter
+    def plug_manufacturer_map(self, map: Dict[str, str]) -> None:
+        self._plug_manufacturer_map = map
+    
+    @property
+    def battery_plug_list(self) -> List[Union["BatteryPlug", "BatteryStripPlug"]]:
+        return self._battery_plug_list
+
+    @battery_plug_list.setter
+    def battery_plug_list(self, list: List[Union["BatteryPlug", "BatteryStripPlug"]]) -> None:
+        self._battery_plug_list = list
+    
+    @property
+    def plug_storage_list(self) -> List[str]:
+        return self._plug_storage_list
+
+    @plug_storage_list.setter
+    def plug_storage_list(self, list: List[str]) -> None:
+        self._plug_storage_list = list
+
+    @property
+    def plug_full_charge_list(self) -> List[str]:
+        return self._plug_full_charge_list
+
+    @plug_full_charge_list.setter
+    def plug_full_charge_list(self, list: List[str]) -> None:
+        self._plug_full_charge_list = list    
+    
 
 class CustomLogger(logging.Logger):
     '''
@@ -622,7 +645,8 @@ def create_battery_plug(plug_name: str, smart_device: SmartDevice) -> BatteryPlu
     Returns:
         BatteryPlug: The BatteryPlug instance will have the appropriate BatteryChargeMode set
     '''
-    global plug_storage_list, plug_full_charge_list
+    plug_full_charge_list = BatteryManagerState().plug_full_charge_list
+    plug_storage_list = BatteryManagerState().plug_storage_list
     plug: BatteryPlug = BatteryPlug(
         plug_name, smart_device, BatteryManagerState().max_cycles_in_fine_mode, get_device_config(plug_name))
     if plug_name in plug_storage_list:
@@ -647,7 +671,8 @@ def create_battery_strip_plug(plug_name: str, smart_device: SmartDevice, index: 
     Returns:
         BatteryStripPlug: The BatteryStripPlug instance will have the appropriate BatteryChargeMode set
     '''
-    global plug_storage_list
+    plug_full_charge_list = BatteryManagerState().plug_full_charge_list
+    plug_storage_list = BatteryManagerState().plug_storage_list
     plug: BatteryStripPlug = BatteryStripPlug(
         plug_name, smart_device, index, BatteryManagerState().max_cycles_in_fine_mode, get_device_config(plug_name))
     if plug_name in plug_storage_list:
@@ -679,7 +704,7 @@ async def update_battery_plug_list(smart_device: SmartDevice, manufacturer_plug_
         smart_device (SmartDevice): Can be either a plug or a strip of plugs
         manufacturer_plug_names (dict): _description_
     '''
-    global battery_plug_list
+    battery_plug_list = BatteryManagerState().battery_plug_list
     if smart_device.is_plug:
         logging.info(f'init: found a SmartPlug: {smart_device.alias}')
         if BATTERY_PREFIX in smart_device.alias or smart_device.alias in manufacturer_plug_names:
@@ -707,11 +732,11 @@ async def init() -> int:
     Returns:
         int: number of ebike battery plugs discovered
     '''
-    global battery_plug_list
+    battery_plug_list = BatteryManagerState().battery_plug_list
     found = await Discover.discover()
     force_log(f'>>>>> init <<<<<')
     # Handle all plug names in config file CONFIG_PLUGS_SECTION.  These do not have to have a BATTERY_PREFIX
-    manufacturer_plug_names = plug_manufacturer_map.keys()
+    manufacturer_plug_names = BatteryManagerState().plug_manufacturer_map.keys()
     for smart_device in found.values():
         await smart_device.update()
         await update_battery_plug_list(smart_device, manufacturer_plug_names)
@@ -730,7 +755,7 @@ async def setup() -> None:
     Scan plugs and make sure all are on at exit
 
     '''
-    global battery_plug_list
+    battery_plug_list = BatteryManagerState().battery_plug_list
     force_log('>>>>> setup ENTRY')
     for plug in battery_plug_list:
         await plug.update()
@@ -817,10 +842,9 @@ async def analyze() -> bool:
     Returns:
         bool: True if we are actively charging at the exit of this function
     '''
-    # global probe_interval_secs
-    global battery_plug_list
     global active_plugs
     global start_threshold_logger
+    battery_plug_list = BatteryManagerState().battery_plug_list
 
     probe_interval_secs = BatteryManagerState().probe_interval_secs
 
@@ -937,6 +961,7 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
     '''
     global max_runtime_exceeded
     probe_interval_secs: int = BatteryManagerState().probe_interval_secs
+    battery_plug_list = BatteryManagerState().battery_plug_list
 
     retry_limit = RETRY_LIMIT
     success = False
@@ -995,7 +1020,7 @@ async def shutdown_plugs() -> None:
     Cleans up plugs when an error state is reached.
     Not part of the normal shutdown
     '''
-    global battery_plug_list
+    battery_plug_list = BatteryManagerState().battery_plug_list
     logging.info(f'>>>>> shutdown_plugs <<<<<')
     try:
         plugs_to_delete = []
@@ -1021,7 +1046,8 @@ def get_device_config(plug_name: str) -> DeviceConfig:
     3. if the plug_name manufacturer is missing => DEFAULT
     Note, device_config must always have a DEFAULT_CONFIG_TAG tag
     '''
-    global device_config, plug_manufacturer_map
+    plug_manufacturer_map = BatteryManagerState().plug_manufacturer_map
+    device_config = BatteryManagerState().device_config
     if plug_name in plug_manufacturer_map:
         manufacturer = plug_manufacturer_map[plug_name]
         return device_config[manufacturer]
@@ -1054,7 +1080,10 @@ def verify_config_file(config_file_name: str) -> bool:
     Returns:
         bool: Normal exit indicating success in parsing the config file
     '''
-    global device_config, plug_manufacturer_map, plug_storage_list, plug_full_charge_list
+    plug_full_charge_list = BatteryManagerState().plug_full_charge_list
+    plug_manufacturer_map = BatteryManagerState().plug_manufacturer_map
+    device_config = BatteryManagerState().device_config
+    plug_storage_list = BatteryManagerState().plug_storage_list
     try:
         verified = True
         if isfile(config_file_name):
@@ -1137,11 +1166,13 @@ def verify_config_file(config_file_name: str) -> bool:
             # any plugs in storage mode?
             if CONFIG_STORAGE_SECTION in sections:
                 plug_storage_list = list(config_parser[CONFIG_STORAGE_SECTION])
+                BatteryManagerState().plug_storage_list = plug_storage_list
             if CONFIG_FULL_CHARGE_SECTION in sections:
                 full_charge_list = list(
                     config_parser[CONFIG_FULL_CHARGE_SECTION])
                 plug_full_charge_list = list(
                     set(full_charge_list) - set(plug_storage_list))
+                BatteryManagerState().plug_full_charge_list = plug_full_charge_list
         else:
             logging.error(
                 f'>>>>> ERROR: specified config_file: {config_file_name} does not exist')
@@ -1307,8 +1338,10 @@ def run_battery_controller(max_hours_to_run: int,
         app_key (str): 
         test_mode (bool): 
     '''
-    global battery_plug_list, plug_storage_list, plug_full_charge_list
-    global device_config, quiet_mode, start_threshold_logger
+    plug_full_charge_list = BatteryManagerState().plug_full_charge_list
+    global quiet_mode, start_threshold_logger
+    device_config = BatteryManagerState().device_config
+    plug_storage_list = BatteryManagerState().plug_storage_list
 
     logging.info(f'Script logs are in {log_file}')
     start = datetime.now()

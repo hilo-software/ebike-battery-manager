@@ -51,7 +51,7 @@ RETRY_LIMIT = 3
 COARSE_PROBE_INTERVAL_SECS = 10 * 60
 FULL_CHARGE_REPEAT_LIMIT = 3
 PLUG_RETRY_SETUP_LIMIT = 3
-DEFAULT_MAX_RUNTIME_HOURS = 12
+MAX_RUNTIME_HOURS_DEFAULT = 12
 
 # mandatory_config_manufacturer_tags = [FULL_CHARGE_THRESHOLD_TAG, COARSE_PROBE_THRESHOLD_MARGIN_TAG]
 # one_of_config_manufacturer_threshold_tags = [NOMINAL_START_THRESHOLD_TAG, NOMINAL_STOP_THRESHOLD_TAG]
@@ -99,7 +99,7 @@ class BatteryManagerState:
             cls._instance._probe_interval_secs = COARSE_PROBE_INTERVAL_SECS
             cls._instance._max_cycles_in_fine_mode = MAX_CYCLES_IN_FINE_MODE
             cls._instance._force_full_charge = False
-            cls._instance._max_hours_to_run = DEFAULT_MAX_RUNTIME_HOURS
+            cls._instance._max_hours_to_run = MAX_RUNTIME_HOURS_DEFAULT
             cls._instance._storage_charge_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
             cls._instance._battery_plug_list = []
             cls._instance._device_config = {}
@@ -1589,7 +1589,7 @@ def main() -> None:
                                           COARSE_PROBE_THRESHOLD_MARGIN,
                                           0.0,
                                           0.0,
-                                          DEFAULT_MAX_RUNTIME_HOURS
+                                          MAX_RUNTIME_HOURS_DEFAULT
                                           )
     run_battery_controller(BatteryManagerState().max_hours_to_run,
                            log_file,

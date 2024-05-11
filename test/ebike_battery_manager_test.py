@@ -83,7 +83,7 @@ def create_default_device_config() -> None:
         target.COARSE_PROBE_THRESHOLD_MARGIN,
         0.0,
         0.0,
-        target.DEFAULT_MAX_RUNTIME_HOURS
+        target.MAX_RUNTIME_HOURS_DEFAULT
     )
 
 def test_fixture_init():
@@ -112,7 +112,7 @@ def test_battery_manager_simple_state():
     assert target.BatteryManagerState().probe_interval_secs == target.COARSE_PROBE_INTERVAL_SECS
     assert target.BatteryManagerState().max_cycles_in_fine_mode == target.MAX_CYCLES_IN_FINE_MODE
     assert target.BatteryManagerState().force_full_charge == False
-    assert target.BatteryManagerState().max_hours_to_run == target.DEFAULT_MAX_RUNTIME_HOURS
+    assert target.BatteryManagerState().max_hours_to_run == target.MAX_RUNTIME_HOURS_DEFAULT
     assert target.BatteryManagerState().storage_charge_cycle_limit == target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
     assert target.BatteryManagerState().analyze_first_entry == True
     assert target.BatteryManagerState().quiet_mode == False
@@ -142,10 +142,10 @@ def test_battery_manager_simple_state():
     target.BatteryManagerState().force_full_charge = False
     assert target.BatteryManagerState().force_full_charge == False
 
-    target.BatteryManagerState().max_hours_to_run = target.DEFAULT_MAX_RUNTIME_HOURS - 1
-    assert target.BatteryManagerState().max_hours_to_run == target.DEFAULT_MAX_RUNTIME_HOURS - 1
-    target.BatteryManagerState().max_hours_to_run = target.DEFAULT_MAX_RUNTIME_HOURS
-    assert target.BatteryManagerState().max_hours_to_run == target.DEFAULT_MAX_RUNTIME_HOURS
+    target.BatteryManagerState().max_hours_to_run = target.MAX_RUNTIME_HOURS_DEFAULT - 1
+    assert target.BatteryManagerState().max_hours_to_run == target.MAX_RUNTIME_HOURS_DEFAULT - 1
+    target.BatteryManagerState().max_hours_to_run = target.MAX_RUNTIME_HOURS_DEFAULT
+    assert target.BatteryManagerState().max_hours_to_run == target.MAX_RUNTIME_HOURS_DEFAULT
 
     target.BatteryManagerState().storage_charge_cycle_limit = target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT - 1
     assert target.BatteryManagerState().storage_charge_cycle_limit == target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT - 1

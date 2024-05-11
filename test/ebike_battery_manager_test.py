@@ -30,60 +30,46 @@ BatteryPlug = target.BatteryPlug
 BatteryStripPlug = target.BatteryStripPlug
 max_cycles_in_fine_mode = target.BatteryManagerState().max_cycles_in_fine_mode
 default_config = target.BatteryManagerState().default_config
-rad_config: DeviceConfig
-lectric_config: DeviceConfig
+rad_config: DeviceConfig = DeviceConfig('Rad',
+                                        target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT,
+                                        target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT,
+                                        target.FULL_CHARGE_THRESHOLD_DEFAULT,
+                                        target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT,
+                                        target.STORAGE_CHARGE_STOP_THRESHOLD_TAG,
+                                        target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
+                                        target.COARSE_PROBE_THRESHOLD_MARGIN,
+                                        RAD_CHARGER_AMP_HOUR_RATE,
+                                        RAD_BATTERY_AMP_HOUR_CAPACITY,
+                                        ceil(RAD_BATTERY_AMP_HOUR_CAPACITY /
+                                             RAD_CHARGER_AMP_HOUR_RATE)
+                                        )
+lectric_config: DeviceConfig = DeviceConfig('Lectric',
+                                            LECTRIC_NOMINAL_START_THRESHOLD,
+                                            LECTRIC_NOMINAL_STOP_THRESHOLD,
+                                            LECTRIC_FULL_CHARGE_THRESHOLD,
+                                            LECTRIC_STORAGE_START_THRESHOLD,
+                                            LECTRIC_STORAGE_STOP_THRESHOLD,
+                                            target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
+                                            LECTRIC_COARSE_MARGIN,
+                                            LECTRIC_CHARGER_AMP_HOUR_RATE,
+                                            LECTRIC_BATTERY_AMP_HOUR_CAPACITY,
+                                            ceil(LECTRIC_BATTERY_AMP_HOUR_CAPACITY /
+                                                 LECTRIC_CHARGER_AMP_HOUR_RATE)
+                                            )
 
 @pytest.fixture(scope="session", autouse=True)
 def execute_before_any_test():
     
     global rad_config, battery_plug_list
-    
-    # your setup code goes here, executed ahead of first test
-    rad_config = DeviceConfig('Rad',
-                                  target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT,
-                                  target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT,
-                                  target.FULL_CHARGE_THRESHOLD_DEFAULT,
-                                  target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT,
-                                  target.STORAGE_CHARGE_STOP_THRESHOLD_TAG,
-                                  target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
-                                  target.COARSE_PROBE_THRESHOLD_MARGIN,
-                                  RAD_CHARGER_AMP_HOUR_RATE,
-                                  RAD_BATTERY_AMP_HOUR_CAPACITY,
-                                  ceil(RAD_BATTERY_AMP_HOUR_CAPACITY /
-                                       RAD_CHARGER_AMP_HOUR_RATE)
-                                  )
-    lectric_config = DeviceConfig('Lectric',
-                                      LECTRIC_NOMINAL_START_THRESHOLD,
-                                      LECTRIC_NOMINAL_STOP_THRESHOLD,
-                                      LECTRIC_FULL_CHARGE_THRESHOLD,
-                                      LECTRIC_STORAGE_START_THRESHOLD,
-                                      LECTRIC_STORAGE_STOP_THRESHOLD,
-                                      target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
-                                      LECTRIC_COARSE_MARGIN,
-                                      LECTRIC_CHARGER_AMP_HOUR_RATE,
-                                      LECTRIC_BATTERY_AMP_HOUR_CAPACITY,
-                                      ceil(LECTRIC_BATTERY_AMP_HOUR_CAPACITY /
-                                           LECTRIC_CHARGER_AMP_HOUR_RATE)
-                                      )
+    assert len(target.BatteryManagerState().device_config) == 0
+    assert len(target.BatteryManagerState().battery_plug_list) == 0
     target.BatteryManagerState().device_config['Rad'] = rad_config
     target.BatteryManagerState().device_config['Lectric'] = lectric_config
     create_default_device_config()
-    # target.BatteryManagerState().device_config[target.DEFAULT_CONFIG_TAG] = DeviceConfig(
-    #     target.DEFAULT_CONFIG_TAG,
-    #     target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT,
-    #     target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT,
-    #     target.FULL_CHARGE_THRESHOLD_DEFAULT,
-    #     target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT,
-    #     target.STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT,
-    #     target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT,
-    #     target.COARSE_PROBE_THRESHOLD_MARGIN,
-    #     0.0,
-    #     0.0,
-    #     target.DEFAULT_MAX_RUNTIME_HOURS
-    # )
 
     battery_plug_list.append(BatteryPlug('battery_1', target.SmartDevice('127.0.0.1'), max_cycles_in_fine_mode, rad_config))
     battery_plug_list.append(BatteryPlug('battery_2', target.SmartDevice('127.0.0.1'), max_cycles_in_fine_mode, rad_config))
+
 
 def create_default_device_config() -> None:
     target.BatteryManagerState().device_config[target.DEFAULT_CONFIG_TAG] = DeviceConfig(
@@ -118,6 +104,77 @@ def set_sample_thresholds():
     assert len(target.BatteryManagerState().device_config) == 3
     assert len(target.BatteryManagerState().plug_manufacturer_map) == 5
     assert len(target.BatteryManagerState().plug_storage_list) == 1
+
+def test_battery_manager_simple_state():
+    # test default state getters
+    assert target.BatteryManagerState().full_charge_repeat_limit == target.FULL_CHARGE_REPEAT_LIMIT
+    assert target.BatteryManagerState().fine_probe_interval_secs == target.FINE_PROBE_INTERVAL_SECS
+    assert target.BatteryManagerState().probe_interval_secs == target.COARSE_PROBE_INTERVAL_SECS
+    assert target.BatteryManagerState().max_cycles_in_fine_mode == target.MAX_CYCLES_IN_FINE_MODE
+    assert target.BatteryManagerState().force_full_charge == False
+    assert target.BatteryManagerState().max_hours_to_run == target.DEFAULT_MAX_RUNTIME_HOURS
+    assert target.BatteryManagerState().storage_charge_cycle_limit == target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
+    assert target.BatteryManagerState().analyze_first_entry == True
+    assert target.BatteryManagerState().quiet_mode == False
+    # test state setters
+    target.BatteryManagerState().full_charge_repeat_limit = target.FULL_CHARGE_REPEAT_LIMIT - 1
+    assert target.BatteryManagerState().full_charge_repeat_limit == target.FULL_CHARGE_REPEAT_LIMIT - 1
+    target.BatteryManagerState().full_charge_repeat_limit = target.FULL_CHARGE_REPEAT_LIMIT
+    assert target.BatteryManagerState().full_charge_repeat_limit == target.FULL_CHARGE_REPEAT_LIMIT
+
+    target.BatteryManagerState().fine_probe_interval_secs = target.FINE_PROBE_INTERVAL_SECS - 1
+    assert target.BatteryManagerState().fine_probe_interval_secs == target.FINE_PROBE_INTERVAL_SECS - 1
+    target.BatteryManagerState().fine_probe_interval_secs = target.FINE_PROBE_INTERVAL_SECS
+    assert target.BatteryManagerState().fine_probe_interval_secs == target.FINE_PROBE_INTERVAL_SECS
+
+    target.BatteryManagerState().probe_interval_secs = target.COARSE_PROBE_INTERVAL_SECS - 1
+    assert target.BatteryManagerState().probe_interval_secs == target.COARSE_PROBE_INTERVAL_SECS - 1
+    target.BatteryManagerState().probe_interval_secs = target.COARSE_PROBE_INTERVAL_SECS
+    assert target.BatteryManagerState().probe_interval_secs == target.COARSE_PROBE_INTERVAL_SECS
+
+    target.BatteryManagerState().max_cycles_in_fine_mode = target.MAX_CYCLES_IN_FINE_MODE - 1
+    assert target.BatteryManagerState().max_cycles_in_fine_mode == target.MAX_CYCLES_IN_FINE_MODE - 1
+    target.BatteryManagerState().max_cycles_in_fine_mode = target.MAX_CYCLES_IN_FINE_MODE
+    assert target.BatteryManagerState().max_cycles_in_fine_mode == target.MAX_CYCLES_IN_FINE_MODE
+
+    target.BatteryManagerState().force_full_charge = True
+    assert target.BatteryManagerState().force_full_charge == True
+    target.BatteryManagerState().force_full_charge = False
+    assert target.BatteryManagerState().force_full_charge == False
+
+    target.BatteryManagerState().max_hours_to_run = target.DEFAULT_MAX_RUNTIME_HOURS - 1
+    assert target.BatteryManagerState().max_hours_to_run == target.DEFAULT_MAX_RUNTIME_HOURS - 1
+    target.BatteryManagerState().max_hours_to_run = target.DEFAULT_MAX_RUNTIME_HOURS
+    assert target.BatteryManagerState().max_hours_to_run == target.DEFAULT_MAX_RUNTIME_HOURS
+
+    target.BatteryManagerState().storage_charge_cycle_limit = target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT - 1
+    assert target.BatteryManagerState().storage_charge_cycle_limit == target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT - 1
+    target.BatteryManagerState().storage_charge_cycle_limit = target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
+    assert target.BatteryManagerState().storage_charge_cycle_limit == target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
+
+    target.BatteryManagerState().analyze_first_entry = False
+    assert target.BatteryManagerState().analyze_first_entry == False
+    target.BatteryManagerState().analyze_first_entry = True
+    assert target.BatteryManagerState().analyze_first_entry == True
+
+    target.BatteryManagerState().quiet_mode = True
+    assert target.BatteryManagerState().quiet_mode == True
+    target.BatteryManagerState().quiet_mode = False
+    assert target.BatteryManagerState().quiet_mode == False
+
+
+def test_battery_manager_container_default_state():
+    # test state
+    # We always append two plugs in execute_before_any_test() above so we expect to have 2 in this list
+    assert len(target.BatteryManagerState().battery_plug_list) == 2
+    # Similarly for device_config except there should be 3 items since there is a default one too
+    assert len(target.BatteryManagerState().device_config) == 3
+    # The rest of the containers should be at defaults
+    assert len(target.BatteryManagerState().plug_manufacturer_map) == 0
+    assert len(target.BatteryManagerState().plug_storage_list) == 0
+    assert len(target.BatteryManagerState().plug_full_charge_list) == 0
+    assert len(target.BatteryManagerState().active_plugs) == 0
+
 
 def test_setup_logging_handlers():
     # Passing a null filename will cause an exception and the 

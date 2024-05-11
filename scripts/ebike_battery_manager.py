@@ -21,7 +21,9 @@ CLOSE_MISS_MAX = 3
 BATTERY_PREFIX = 'battery_'
 RETRY_DELAY_SECS = 60 * 2
 SETTLE_TIME_SECS = 30
+FINE_PROBE_INTERVAL_SECS = 5 * 60
 COARSE_PROBE_THRESHOLD_MARGIN = 20.0
+MAX_CYCLES_IN_FINE_MODE = 20
 CONFIG_PLUGS_SECTION = 'Plugs'
 CONFIG_STORAGE_SECTION = 'Storage'
 CONFIG_FULL_CHARGE_SECTION = 'FullCharge'
@@ -93,9 +95,9 @@ class BatteryManagerState:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._full_charge_repeat_limit = FULL_CHARGE_REPEAT_LIMIT
-            cls._instance._fine_probe_interval_secs = 5 * 60
+            cls._instance._fine_probe_interval_secs = FINE_PROBE_INTERVAL_SECS
             cls._instance._probe_interval_secs = COARSE_PROBE_INTERVAL_SECS
-            cls._instance._max_cycles_in_fine_mode = 20
+            cls._instance._max_cycles_in_fine_mode = MAX_CYCLES_IN_FINE_MODE
             cls._instance._force_full_charge = False
             cls._instance._max_hours_to_run = DEFAULT_MAX_RUNTIME_HOURS
             cls._instance._storage_charge_cycle_limit = STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
@@ -180,7 +182,7 @@ class BatteryManagerState:
     
     @quiet_mode.setter
     def quiet_mode(self, _quiet_mode: bool) -> None:
-        self._force_full_charge = _quiet_mode
+        self._quiet_mode = _quiet_mode
 
     @property
     def default_config(self) -> "DeviceConfig":

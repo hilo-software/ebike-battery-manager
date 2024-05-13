@@ -837,6 +837,9 @@ def delete_plugs(battery_plug_list: list, plugs_to_delete: list) -> None:
         except ValueError as e:
             logging.warning(
                 f'WARNING: plug: {plug.name} is not in battery_plug_list, exception: {str(e)}')
+        except Exception as e:
+            logging.warning(
+                f'ERROR: plug: {plug.name} had an unexpected exception: {str(e)}')
 
 
 def set_active_plug(plug_name: str) -> None:
@@ -1031,6 +1034,10 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
             logging.error(
                 f'!!!!!>>>>> ERROR ERROR ERROR ERROR BatteryPlugException: {e.msg} <<<<<!!!!!')
             success = False
+        except Exception as e:
+            logging.error(
+                f'!!!!!>>>>> ERROR ERROR ERROR ERROR Unexpected Exception: {e.msg} <<<<<!!!!!')
+            success = False
 
     return success
 
@@ -1050,6 +1057,11 @@ async def shutdown_plugs() -> None:
             plugs_to_delete.append(plug)
     except BatteryPlugException as e:
         logging.error(f'FATAL ERROR: shutdown_plugs: {str(e)}')
+        logging.error(
+            'FATAL ERROR: Unable to shutdown plugs, check plug status manually')
+        return
+    except Exception as e:
+        logging.error(f'FATAL ERROR: Unexpected Exception in shutdown_plugs: {str(e)}')
         logging.error(
             'FATAL ERROR: Unable to shutdown plugs, check plug status manually')
         return
@@ -1236,7 +1248,7 @@ def send(from_addr, to_addr, app_key, msg) -> None:
     except smtplib.SMTPException as e:
         logging.error(f'MAIL SMTP ERROR: Unable to send mail: {str(e)}')
     except Exception as e:
-        logging.error(f'MAIL General ERROR: Unable to send mail: {str(e)}')
+        logging.error(f'MAIL General ERROR: Unexpected Exception in send: Unable to send mail: {str(e)}')
 
 
 def send_my_mail(email: str, app_key: str, log_file: str) -> None:
@@ -1473,6 +1485,13 @@ def setup_logging_handlers(log_file: str) -> list:
             logging.StreamHandler()
         ]
         return logging_handlers
+    except Exception as e:
+        print(f'ERROR -- Unexpected Exception: Could not create logging file: {log_file}, e: {str(e)}')
+        logging_handlers = [
+            logging.StreamHandler()
+        ]
+        return logging_handlers
+
     logging_handlers = [
         logging_file_handler,
         logging.StreamHandler()

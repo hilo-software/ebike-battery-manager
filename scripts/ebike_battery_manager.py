@@ -14,6 +14,9 @@ import configparser
 import traceback
 from math import ceil
 from dataclasses import dataclass
+import atexit
+import signal
+import sys
 
 # Constants
 CLOSE_MISS_PCT = 0.05
@@ -57,6 +60,11 @@ MAX_RUNTIME_HOURS_DEFAULT = 12
 # one_of_config_manufacturer_threshold_tags = [NOMINAL_START_THRESHOLD_TAG, NOMINAL_STOP_THRESHOLD_TAG]
 MANDATORY_CONFIG_MANUFACTURER_TAGS = [FULL_CHARGE_THRESHOLD_TAG, COARSE_PROBE_THRESHOLD_MARGIN_TAG]
 ONE_OF_CONFIG_MANUFACTURER_TAGS = [NOMINAL_START_THRESHOLD_TAG, NOMINAL_STOP_THRESHOLD_TAG]
+
+def sigint_handler(signal, frame):
+    print("SIGINT receivedxxx")
+    sys.exit(0)
+
 
 class BatteryManagerState:
     '''
@@ -829,7 +837,7 @@ def delete_plugs(battery_plug_list: list, plugs_to_delete: list) -> None:
     Args:
         plugs_to_delete (list): plugs that need to be removed from global battery_plug_list
     '''
-    logging.info(f"delete_plugs test_len: {len(battery_plug_list)}")
+    # logging.info(f"delete_plugs number to delete: {len(battery_plug_list)}")
     for plug in plugs_to_delete:
         try:
             battery_plug_list.remove(plug)
@@ -1499,6 +1507,27 @@ def setup_logging_handlers(log_file: str) -> list:
     return logging_handlers
 
 
+def exit_handler():
+    logging.info("exit_handler")
+    try:
+        loop = asyncio.get_event_loop()
+    except Exception as e:
+        logging.error(f'exit_handler Exception: {e}')
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(shutdown_plugs())
+        loop.close()
+        return
+
+    logging.info("exit_handler -> normal cleanup")
+    if loop.is_running():
+        loop.create_task(shutdown_plugs())
+    else:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(shutdown_plugs())
+        loop.close()
+
 def main() -> None:
     global start_threshold_logger
 
@@ -1508,6 +1537,9 @@ def main() -> None:
     storage_charge_start_power_threshold = STORAGE_CHARGE_START_THRESHOLD_DEFAULT
     storage_charge_stop_power_threshold = STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT
     log_file = DEFAULT_LOG_FILE
+
+    atexit.register(exit_handler)
+    signal.signal(signal.SIGINT, sigint_handler)
 
     parser = init_argparse()
     args = parser.parse_args()

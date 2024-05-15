@@ -1508,25 +1508,32 @@ def setup_logging_handlers(log_file: str) -> list:
 
 
 def exit_handler():
-    logging.info("exit_handler")
+    """
+    This function is registered with atexit to handle graceful shutdown of async tasks.
+    It attempts to get the current event loop, and if successful, it runs the shutdown_plugs
+    coroutine within that loop. If the loop is not running, it creates a new event loop
+    to run the shutdown_plugs coroutine.
+    """
+    logging.info("Executing exit_handler")
+
     try:
         loop = asyncio.get_event_loop()
-    except Exception as e:
-        logging.error(f'exit_handler Exception: {e}')
+    except RuntimeError as e:
+        logging.error(f"Failed to get event loop: {e}")
+        # Create a new event loop if the current one is not available
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(shutdown_plugs())
-        loop.close()
-        return
 
-    logging.info("exit_handler -> normal cleanup")
     if loop.is_running():
+        logging.info("Running shutdown_plugs within the current event loop")
         loop.create_task(shutdown_plugs())
     else:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        logging.info("Running shutdown_plugs in a new event loop")
         loop.run_until_complete(shutdown_plugs())
-        loop.close()
+
+    # Close the event loop after running shutdown_plugs
+    loop.close()
+    logging.info("Event loop closed")
 
 def main() -> None:
     global start_threshold_logger

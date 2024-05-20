@@ -41,8 +41,10 @@ rad_config: DeviceConfig = DeviceConfig('Rad',
                                         RAD_CHARGER_AMP_HOUR_RATE,
                                         RAD_BATTERY_AMP_HOUR_CAPACITY,
                                         ceil(RAD_BATTERY_AMP_HOUR_CAPACITY /
-                                             RAD_CHARGER_AMP_HOUR_RATE)
+                                             RAD_CHARGER_AMP_HOUR_RATE),
+                                        target.DEFAULT_BATTERY_VOLTAGE
                                         )
+
 lectric_config: DeviceConfig = DeviceConfig('Lectric',
                                             LECTRIC_NOMINAL_START_THRESHOLD,
                                             LECTRIC_NOMINAL_STOP_THRESHOLD,
@@ -54,7 +56,8 @@ lectric_config: DeviceConfig = DeviceConfig('Lectric',
                                             LECTRIC_CHARGER_AMP_HOUR_RATE,
                                             LECTRIC_BATTERY_AMP_HOUR_CAPACITY,
                                             ceil(LECTRIC_BATTERY_AMP_HOUR_CAPACITY /
-                                                 LECTRIC_CHARGER_AMP_HOUR_RATE)
+                                                 LECTRIC_CHARGER_AMP_HOUR_RATE),
+                                            target.DEFAULT_BATTERY_VOLTAGE
                                             )
 
 @pytest.fixture(scope="session", autouse=True)
@@ -591,6 +594,122 @@ def test_mock_BatteryStripPlug():
         instance.get_power.return_value = 4.5
         result = instance.get_power()
         assert result == 4.5
+
+def test_device_config_battery_voltage() -> None:
+    test_config = DeviceConfig(rad_config.manufacturer_name,
+                                          rad_config.nominal_charge_start_power_threshold,
+                                          rad_config.nominal_charge_stop_power_threshold,
+                                          rad_config.full_charge_power_threshold,
+                                          rad_config.storage_charge_start_power_threshold,
+                                          rad_config.storage_charge_stop_power_threshold,
+                                          rad_config.storage_charge_cycle_limit,
+                                          20,
+                                          rad_config.charger_amp_hour_rate,
+                                          rad_config.battery_amp_hour_capacity,
+                                          rad_config.charger_max_hours_to_run)
+    assert test_config.battery_voltage == target.DEFAULT_BATTERY_VOLTAGE
+    test_config = DeviceConfig(rad_config.manufacturer_name,
+                                          rad_config.nominal_charge_start_power_threshold,
+                                          rad_config.nominal_charge_stop_power_threshold,
+                                          rad_config.full_charge_power_threshold,
+                                          rad_config.storage_charge_start_power_threshold,
+                                          rad_config.storage_charge_stop_power_threshold,
+                                          rad_config.storage_charge_cycle_limit,
+                                          20,
+                                          rad_config.charger_amp_hour_rate,
+                                          rad_config.battery_amp_hour_capacity,
+                                          rad_config.charger_max_hours_to_run,
+                                          battery_voltage=None)
+    assert test_config.battery_voltage == target.DEFAULT_BATTERY_VOLTAGE
+    test_config = DeviceConfig(rad_config.manufacturer_name,
+                                          rad_config.nominal_charge_start_power_threshold,
+                                          rad_config.nominal_charge_stop_power_threshold,
+                                          rad_config.full_charge_power_threshold,
+                                          rad_config.storage_charge_start_power_threshold,
+                                          rad_config.storage_charge_stop_power_threshold,
+                                          rad_config.storage_charge_cycle_limit,
+                                          20,
+                                          rad_config.charger_amp_hour_rate,
+                                          rad_config.battery_amp_hour_capacity,
+                                          rad_config.charger_max_hours_to_run,
+                                          battery_voltage=target.DEFAULT_BATTERY_VOLTAGE)
+    assert test_config.battery_voltage == target.DEFAULT_BATTERY_VOLTAGE
+    test_battery_override_voltage: float = 24.0
+    test_config = DeviceConfig(rad_config.manufacturer_name,
+                                          rad_config.nominal_charge_start_power_threshold,
+                                          rad_config.nominal_charge_stop_power_threshold,
+                                          rad_config.full_charge_power_threshold,
+                                          rad_config.storage_charge_start_power_threshold,
+                                          rad_config.storage_charge_stop_power_threshold,
+                                          rad_config.storage_charge_cycle_limit,
+                                          20,
+                                          rad_config.charger_amp_hour_rate,
+                                          rad_config.battery_amp_hour_capacity,
+                                          rad_config.charger_max_hours_to_run,
+                                          test_battery_override_voltage)
+    assert test_config.battery_voltage == test_battery_override_voltage
+
+def test_default_battery_voltage() -> None:
+    nominal_thresholds = DeviceConfig(rad_config.manufacturer_name,
+                                          rad_config.nominal_charge_start_power_threshold,
+                                          rad_config.nominal_charge_stop_power_threshold,
+                                          rad_config.full_charge_power_threshold,
+                                          rad_config.storage_charge_start_power_threshold,
+                                          rad_config.storage_charge_stop_power_threshold,
+                                          rad_config.storage_charge_cycle_limit,
+                                          20,
+                                          rad_config.charger_amp_hour_rate,
+                                          rad_config.battery_amp_hour_capacity,
+                                          rad_config.charger_max_hours_to_run)
+    plug = BatteryPlug('test_battery_name', any, max_cycles_in_fine_mode, nominal_thresholds)
+    assert plug.config.battery_voltage == target.DEFAULT_BATTERY_VOLTAGE
+
+def test_override_battery_voltage() -> None:
+    test_battery_override_voltage: float = 24.0
+    nominal_thresholds = DeviceConfig(rad_config.manufacturer_name,
+                                          rad_config.nominal_charge_start_power_threshold,
+                                          rad_config.nominal_charge_stop_power_threshold,
+                                          rad_config.full_charge_power_threshold,
+                                          rad_config.storage_charge_start_power_threshold,
+                                          rad_config.storage_charge_stop_power_threshold,
+                                          rad_config.storage_charge_cycle_limit,
+                                          20,
+                                          rad_config.charger_amp_hour_rate,
+                                          rad_config.battery_amp_hour_capacity,
+                                          rad_config.charger_max_hours_to_run,
+                                          test_battery_override_voltage)
+    plug = BatteryPlug('test_battery_name', any, max_cycles_in_fine_mode, nominal_thresholds)
+    assert plug.config.battery_voltage == test_battery_override_voltage
+
+def compute_amp_hours(watts: float, seconds: int, battery_voltage: float) -> float:
+        watt_hours: float = watts * (float(seconds) / 60.0)
+        return (watt_hours / battery_voltage)
+
+def test_accumulate_amp_hours():
+    nominal_thresholds = DeviceConfig(rad_config.manufacturer_name,
+                                          rad_config.nominal_charge_start_power_threshold,
+                                          rad_config.nominal_charge_stop_power_threshold,
+                                          rad_config.full_charge_power_threshold,
+                                          rad_config.storage_charge_start_power_threshold,
+                                          rad_config.storage_charge_stop_power_threshold,
+                                          rad_config.storage_charge_cycle_limit,
+                                          20,
+                                          rad_config.charger_amp_hour_rate,
+                                          rad_config.battery_amp_hour_capacity,
+                                          rad_config.charger_max_hours_to_run)
+    plug = BatteryPlug('test_battery_name', any, max_cycles_in_fine_mode, nominal_thresholds)
+    plug.total_amp_hours = 0.0
+    watts: float = 4.5
+    plug.accumulate_amp_hours(watts, target.COARSE_PROBE_INTERVAL_SECS)
+    total_amp_hours: float = 0.0
+    probe_period_amp_hours: float = compute_amp_hours(watts, target.COARSE_PROBE_INTERVAL_SECS, plug.config.battery_voltage)
+    total_amp_hours += probe_period_amp_hours
+    assert plug.total_amp_hours == total_amp_hours
+    watts = 3.5
+    plug.accumulate_amp_hours(watts, target.FINE_PROBE_INTERVAL_SECS)
+    probe_period_amp_hours = compute_amp_hours(watts, target.FINE_PROBE_INTERVAL_SECS, plug.config.battery_voltage)
+    total_amp_hours += probe_period_amp_hours
+    assert plug.total_amp_hours == total_amp_hours
 
 def test_active_plugs():
     target.set_active_plug('plug_1')

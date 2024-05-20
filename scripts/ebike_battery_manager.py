@@ -7,7 +7,7 @@ from email.message import EmailMessage
 from datetime import datetime, timedelta
 import logging
 import argparse
-from typing import Set, Union, ForwardRef, Dict, List
+from typing import Set, Union, ForwardRef, Dict, List, Optional
 from os.path import isfile
 from enum import Enum
 import configparser
@@ -24,6 +24,7 @@ CLOSE_MISS_MAX = 3
 BATTERY_PREFIX = 'battery_'
 RETRY_DELAY_SECS = 60 * 2
 SETTLE_TIME_SECS = 30
+COARSE_PROBE_INTERVAL_SECS = 10 * 60
 FINE_PROBE_INTERVAL_SECS = 5 * 60
 COARSE_PROBE_THRESHOLD_MARGIN = 20.0
 MAX_CYCLES_IN_FINE_MODE = 20
@@ -41,6 +42,7 @@ STORAGE_CHARGE_CYCLE_LIMIT_TAG = 'storage_charge_cycle_limit'
 COARSE_PROBE_THRESHOLD_MARGIN_TAG = 'coarse_probe_threshold_margin'
 CHARGER_AMP_HOUR_RATE_TAG = 'charger_amp_hour_rate'
 BATTERY_AMP_HOUR_CAPACITY_TAG = 'battery_amp_hour_capacity'
+BATTERY_VOLTAGE_TAG = 'battery_voltage'
 INVESTIGATE_START_CURRENT_FILE = 'start_current_data.txt'
 # Now experimenting with various thresholds.  For Rad 90W appears to end up at ~91%.
 NOMINAL_CHARGE_START_THRESHOLD_DEFAULT = 90.0
@@ -51,10 +53,10 @@ STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT = 90.0
 STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT = 1
 DEFAULT_LOG_FILE = 'ebike_battery_manager.log'
 RETRY_LIMIT = 3
-COARSE_PROBE_INTERVAL_SECS = 10 * 60
 FULL_CHARGE_REPEAT_LIMIT = 3
 PLUG_RETRY_SETUP_LIMIT = 3
 MAX_RUNTIME_HOURS_DEFAULT = 12
+DEFAULT_BATTERY_VOLTAGE = 48.0
 
 # mandatory_config_manufacturer_tags = [FULL_CHARGE_THRESHOLD_TAG, COARSE_PROBE_THRESHOLD_MARGIN_TAG]
 # one_of_config_manufacturer_threshold_tags = [NOMINAL_START_THRESHOLD_TAG, NOMINAL_STOP_THRESHOLD_TAG]
@@ -62,7 +64,7 @@ MANDATORY_CONFIG_MANUFACTURER_TAGS = [FULL_CHARGE_THRESHOLD_TAG, COARSE_PROBE_TH
 ONE_OF_CONFIG_MANUFACTURER_TAGS = [NOMINAL_START_THRESHOLD_TAG, NOMINAL_STOP_THRESHOLD_TAG]
 
 def sigint_handler(signal, frame):
-    print("SIGINT receivedxxx")
+    print("SIGINT received")
     sys.exit(0)
 
 
@@ -318,6 +320,11 @@ class DeviceConfig():
     charger_amp_hour_rate: float
     battery_amp_hour_capacity: float
     charger_max_hours_to_run: int
+    battery_voltage: Optional[float] = DEFAULT_BATTERY_VOLTAGE
+
+    def __post_init__(self):
+        if self.battery_voltage is None:
+            self.battery_voltage = DEFAULT_BATTERY_VOLTAGE
 
 
 class BatteryPlug():
@@ -338,6 +345,7 @@ class BatteryPlug():
     battery_charge_mode: BatteryChargeMode
     battery_charge_start_time: datetime
     battery_charge_stop_time: datetime
+    total_amp_hours: float
 
     def __init__(self, name: str, device: SmartDevice, max_cycles_in_fine_mode: int, config: DeviceConfig):
         self.name = name
@@ -354,6 +362,7 @@ class BatteryPlug():
         self.battery_charge_mode = BatteryChargeMode.NOMINAL
         self.battery_charge_start_time = datetime.now()
         self.battery_charge_stop_time = self.battery_charge_start_time + timedelta(hours=config.charger_max_hours_to_run)
+        self.total_amp_hours = 0.0
 
     async def update(self):
         await self.device.update()
@@ -534,6 +543,10 @@ class BatteryPlug():
 
     def get_device(self) -> SmartDevice:
         return self.device
+    
+    def accumulate_amp_hours(self, watts: float, seconds: int) -> None:
+        watt_hours: float = watts * (float(seconds) / 60.0)
+        self.total_amp_hours += (watt_hours / self.config.battery_voltage)
 
 
 class BatteryStripPlug(BatteryPlug):
@@ -933,7 +946,9 @@ async def analyze() -> bool:
             else:
                 start_threshold_logger.info(
                     f'!!!! DEBUG: analyze(): LOOP - start_threshold_check() is True, plug: {str(plug_name)}, power: {str(device_power_consumption)}')
-
+        else:
+            # not first time, accumulate amps
+            plug.accumulate_amp_hours(device_power_consumption, probe_interval_secs)
 
         if plug.stop_threshold_check(device_power_consumption):
             turn_off_plug = plug.check_full_charge() or plug.check_storage_mode()
@@ -1177,6 +1192,8 @@ def verify_config_file(config_file_name: str) -> bool:
                         config_parser[manufacturer][BATTERY_AMP_HOUR_CAPACITY_TAG]) if BATTERY_AMP_HOUR_CAPACITY_TAG in config_parser[manufacturer] else 0.0
                     charger_max_hours_to_run = ceil(
                         battery_amp_hour_capacity / charger_amp_hour_rate) if charger_amp_hour_rate > 0.0 and battery_amp_hour_capacity > 0.0 else BatteryManagerState().max_hours_to_run
+                    battery_voltage = float(
+                        config_parser[manufacturer][BATTERY_VOLTAGE_TAG]) if BATTERY_VOLTAGE_TAG in config_parser[manufacturer] else None
                     device_config[manufacturer] = DeviceConfig(manufacturer,
                                                                        nominal_charge_start_power_threshold,
                                                                        nominal_charge_stop_power_threshold,
@@ -1188,7 +1205,8 @@ def verify_config_file(config_file_name: str) -> bool:
                                                                        float(config_parser[manufacturer][COARSE_PROBE_THRESHOLD_MARGIN_TAG]),
                                                                        charger_amp_hour_rate,
                                                                        battery_amp_hour_capacity,
-                                                                       charger_max_hours_to_run)
+                                                                       charger_max_hours_to_run,
+                                                                       battery_voltage)
 
             sections = list(config_parser.keys())
             if CONFIG_PLUGS_SECTION in sections:
@@ -1440,6 +1458,8 @@ def run_battery_controller(max_hours_to_run: int,
                 f'  -------- battery_amp_hour_capacity: {str(device_config[manufacturer].battery_amp_hour_capacity) if device_config[manufacturer].battery_amp_hour_capacity > 0.0 else "N/A"}')
             logging.info(
                 f'  -------- charger_max_hours_to_run: {str(device_config[manufacturer].charger_max_hours_to_run)}')
+            logging.info(
+                f'  -------- battery_voltage: {str(device_config[manufacturer].battery_voltage)}')
     start_quiet_mode()
     if len(plug_storage_list) > 0:
         logging.info(f'  ---- plugs in storage mode: ')
@@ -1472,6 +1492,10 @@ def run_battery_controller(max_hours_to_run: int,
                     f'    {plug.plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]}')
                 start_threshold_logger.info(
                     f'    {plug.plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]}')
+                logging.info(
+                    f'    {plug.plug_name}, accumulated {str(plug_elapsed_charge_time).split(".", 2)[0]} Ah')
+                start_threshold_logger.info(
+                    f'    {plug.plug_name}, accumulated {str(plug.total_amp_hours).split(".", 2)[0]} Ah')
             else:
                 logging.info(
                     f'    {plug.plug_name}, charged for unknown duration')

@@ -710,14 +710,48 @@ def test_accumulate_amp_hours():
     probe_period_amp_hours = compute_amp_hours(watts, target.FINE_PROBE_INTERVAL_SECS, plug.config.battery_voltage)
     total_amp_hours += probe_period_amp_hours
     assert plug.total_amp_hours == total_amp_hours
+    bms = target.BatteryManagerState()
+    assert bms != None
+    old_battery_plug_list_len = len(bms.battery_plug_list)
+    bms.battery_plug_list.append(plug)
+    assert len(bms.battery_plug_list) == old_battery_plug_list_len + 1
+    active_plug = target.ActivePlug(plug=plug, start_time=datetime.now())
+    old_active_plugs_len = len(bms.active_plugs)
+    bms.active_plugs.add(active_plug)
+    assert len(bms.active_plugs) == old_active_plugs_len + 1
+    found_active_plugs = [item for item in bms.active_plugs if item.plug.name == plug.name]
+    assert len(found_active_plugs) > 0
+    found_active_plug = found_active_plugs[0]
+    assert found_active_plug
+    found_plugs = [item for item in bms.battery_plug_list if item.name == found_active_plug.plug.name]
+    assert len(found_plugs) > 0
+    found_plug = found_plugs[0]
+    assert found_plug
+    test_log_string:str = (f'    {found_active_plug.plug.name}, added {found_plug.total_amp_hours:.2f} Ah')
+    assert len(test_log_string) > 0
+    # cleanup
+    bms.active_plugs.remove(active_plug)
+    bms.battery_plug_list.remove(plug)
+
 
 def test_active_plugs():
-    target.set_active_plug('plug_1')
-    target.set_active_plug('plug_2')
+    nominal_thresholds = DeviceConfig(rad_config.manufacturer_name,
+                                          rad_config.nominal_charge_start_power_threshold,
+                                          rad_config.nominal_charge_stop_power_threshold,
+                                          rad_config.full_charge_power_threshold,
+                                          rad_config.storage_charge_start_power_threshold,
+                                          rad_config.storage_charge_stop_power_threshold,
+                                          rad_config.storage_charge_cycle_limit,
+                                          20,
+                                          rad_config.charger_amp_hour_rate,
+                                          rad_config.battery_amp_hour_capacity,
+                                          rad_config.charger_max_hours_to_run)
+    target.set_active_plug(BatteryPlug('plug_1', any, max_cycles_in_fine_mode, nominal_thresholds))
+    target.set_active_plug(BatteryPlug('plug_2', any, max_cycles_in_fine_mode, nominal_thresholds))
     assert len(target.BatteryManagerState().active_plugs) == 2
     time.sleep(1)
     for active_plug in target.BatteryManagerState().active_plugs:
-        target.stop_active_plug(active_plug.plug_name)
+        target.stop_active_plug(active_plug.plug.name)
         elapsed_time: datetime = active_plug.stop_time - active_plug.start_time
         assert elapsed_time.seconds > 0
 

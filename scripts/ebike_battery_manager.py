@@ -274,12 +274,12 @@ start_threshold_logger.addHandler(start_threshold_logger_file_handler)
 start_threshold_logger.setLevel(logging.INFO)
 
 class ActivePlug():
-    plug_name: str
+    plug: "BatteryPlug"
     start_time: datetime
     stop_time: datetime = None
 
-    def __init__(self, plug_name: str, start_time: datetime):
-        self.plug_name = plug_name
+    def __init__(self, plug: "BatteryPlug", start_time: datetime):
+        self.plug = plug
         self.start_time = start_time
 
 
@@ -367,8 +367,17 @@ class BatteryPlug():
     async def update(self):
         await self.device.update()
 
-    def get_power(self) -> float:
-        return self.device.emeter_realtime.power
+    async def get_power(self) -> float:
+        '''
+        Convert kw to watts
+
+        Returns:
+            float: power in watts
+        '''
+        # return self.device.emeter_realtime.power / 1000.0
+        power: float = await self.device.current_consumption()
+        logging.info(f'BatteryPlug.get_power: {str(power)}, emeter_realtime: {str(self.device.emeter_realtime.power)}')
+        return power
 
     def is_on(self) -> bool:
         return self.device.is_on
@@ -547,6 +556,7 @@ class BatteryPlug():
     def accumulate_amp_hours(self, watts: float, seconds: int) -> None:
         watt_hours: float = watts * (float(seconds) / 60.0)
         self.total_amp_hours += (watt_hours / self.config.battery_voltage)
+        start_threshold_logger.error(f'DEBUG: plug: {self.name}, voltage: {str(self.config.battery_voltage)}, watts: {str(watts)}, seconds: {str(seconds)}, watt_hours: {str(watt_hours)}, total_amp_hours: {str(self.total_amp_hours)}')
 
 
 class BatteryStripPlug(BatteryPlug):
@@ -559,9 +569,18 @@ class BatteryStripPlug(BatteryPlug):
         super().__init__(name, device, max_cycles_in_fine_mode, thresholds)
         self.plug_index = plug_index
 
-    def get_power(self) -> float:
+    async def get_power(self) -> float:
+        '''
+        Convert kw to watts
+
+        Returns:
+            float: power in watts
+        '''
         child_plug = self.device.children[self.plug_index]
-        return child_plug.emeter_realtime.power
+        # return child_plug.emeter_realtime.power / 1000.0
+        power: float = await child_plug.current_consumption()
+        logging.info(f'BatteryStripPlug.get_power: {str(power)}, emeter_realtime: {str(child_plug.emeter_realtime.power)}')
+        return power
 
     def is_on(self) -> bool:
         child_plug = self.device.children[self.plug_index]
@@ -806,7 +825,7 @@ async def setup() -> None:
                 await plug.turn_on()
                 await asyncio.sleep(5)
                 await plug.update()
-                device_power_consumption = plug.get_power()
+                device_power_consumption = await plug.get_power()
                 if device_power_consumption > 0:
                     logging.info(
                         f'>>>>> setup plug: {plug.name} is using power: {device_power_consumption}')
@@ -820,7 +839,7 @@ async def setup() -> None:
                     await plug.update()
             else:
                 await plug.update()
-                device_power_consumption = plug.get_power()
+                device_power_consumption = await plug.get_power()
                 if device_power_consumption > 0:
                     logging.info(
                         f'>>>>> setup plug: {plug.name} is using power: {device_power_consumption}')
@@ -863,17 +882,17 @@ def delete_plugs(battery_plug_list: list, plugs_to_delete: list) -> None:
                 f'ERROR: plug: {plug.name} had an unexpected exception: {str(e)}')
 
 
-def set_active_plug(plug_name: str) -> None:
+def set_active_plug(battery_plug: BatteryPlug) -> None:
     active_plugs: Set[ActivePlug] = BatteryManagerState().active_plugs
-    if not any(plug_name == plug.plug_name for plug in active_plugs):
+    if not any(battery_plug.name == plug.plug.name for plug in active_plugs):
         active_plugs.add(ActivePlug(
-            plug_name=plug_name, start_time=datetime.now()))
+            plug=battery_plug, start_time=datetime.now()))
 
 
 def stop_active_plug(plug_name: str) -> None:
     active_plugs: Set[ActivePlug] = BatteryManagerState().active_plugs
     active_plug: ActivePlug = next(
-        (x for x in active_plugs if x.plug_name == plug_name), None)
+        (x for x in active_plugs if x.plug.name == plug_name), None)
     if active_plug:
         active_plug.stop_time = datetime.now()
 
@@ -903,7 +922,7 @@ async def analyze() -> bool:
         nonlocal actively_charging
         actively_charging = True
         logging.info(f'{plug.name} is actively_charging')
-        set_active_plug(plug.name)
+        set_active_plug(plug)
 
     # track next_probe_interval_secs starting at COARSE_PROBE_INTERVAL_SECS to handle the case
     # where we dropped into a fine_probe_interval_secs for one battery and that battery finished
@@ -933,7 +952,7 @@ async def analyze() -> bool:
             plugs_to_delete.append(plug)
             continue
 
-        device_power_consumption = plug.get_power()
+        device_power_consumption = await plug.get_power()
         logging.info(plug_name + ': ' + str(device_power_consumption))
         if BatteryManagerState().analyze_first_entry:
             start_threshold_logger.info(
@@ -1320,7 +1339,7 @@ async def test_stuff() -> None:
                     dev.alias, dev, max_cycles_in_fine_mode)
                 # logging.info(f'dir: {str(dir(battery_plug))}')
                 logging.info(
-                    f'plug: {battery_plug.name}, power: {str(battery_plug.get_power())}')
+                    f'plug: {battery_plug.name}, power: {str(await battery_plug.get_power())}')
                 battery_plug_list.append(battery_plug)
         if dev.is_strip:
             logging.info(f'test_stuff: dev.children: {len(dev.children)}')
@@ -1332,7 +1351,7 @@ async def test_stuff() -> None:
                     # logging.info(f'child_plug:dir: {str(dir(battery_plug))}')
                     # logging.info(f'child_plug: {battery_plug.get_name()}, power: {str(battery_plug.get_power())}')
                     logging.info(
-                        f'child_plug: {battery_plug.name}, power: {str(battery_plug.get_power())}')
+                        f'child_plug: {battery_plug.name}, power: {str(await battery_plug.get_power())}')
                     battery_plug_list.append(battery_plug)
                     if len(test_remove) < 3:
                         test_remove.append(battery_plug)
@@ -1345,9 +1364,9 @@ async def test_stuff() -> None:
     for item in battery_plug_list:
         await item.turn_off()
         logging.info(
-            f'iterate: name: {item.name} on: {str(item.is_on())}, power: {str(item.get_power())}')
+            f'iterate: name: {item.name} on: {str(item.is_on())}, power: {str(await item.get_power())}')
         logging.info(
-            f'iterate: name: {item.name} on: {str(item.is_on())}, power: {str(item.get_power())}')
+            f'iterate: name: {item.name} on: {str(item.is_on())}, power: {str(await item.get_power())}')
 
 
 def start_quiet_mode() -> None:
@@ -1488,14 +1507,16 @@ def run_battery_controller(max_hours_to_run: int,
         for plug in active_plugs:
             if plug.start_time and plug.stop_time:
                 plug_elapsed_charge_time = plug.stop_time - plug.start_time
+                plug_name = plug.plug.name
+                total_amp_hours = plug.plug.total_amp_hours
                 logging.info(
-                    f'    {plug.plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]}')
+                    f'    {plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]}')
                 start_threshold_logger.info(
-                    f'    {plug.plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]}')
+                    f'    {plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]}')
                 logging.info(
-                    f'    {plug.plug_name}, accumulated {str(plug_elapsed_charge_time).split(".", 2)[0]} Ah')
+                    f'    {plug_name}, added {total_amp_hours:.2f} Ah')
                 start_threshold_logger.info(
-                    f'    {plug.plug_name}, accumulated {str(plug.total_amp_hours).split(".", 2)[0]} Ah')
+                    f'    {plug_name}, added {total_amp_hours:.2f} Ah')
             else:
                 logging.info(
                     f'    {plug.plug_name}, charged for unknown duration')

@@ -58,6 +58,7 @@ FULL_CHARGE_REPEAT_LIMIT = 3
 PLUG_RETRY_SETUP_LIMIT = 3
 MAX_RUNTIME_HOURS_DEFAULT = 12
 DEFAULT_BATTERY_VOLTAGE = 48.0
+CHARGER_EFFICIENCY = 0.9
 
 # mandatory_config_manufacturer_tags = [FULL_CHARGE_THRESHOLD_TAG, COARSE_PROBE_THRESHOLD_MARGIN_TAG]
 # one_of_config_manufacturer_threshold_tags = [NOMINAL_START_THRESHOLD_TAG, NOMINAL_STOP_THRESHOLD_TAG]
@@ -379,18 +380,18 @@ class BatteryPlug():
 
     async def reset_emeter_state(self) -> None:
         # await self.device.erase_emeter_stats()
-        logging.error(f'{fn_name()}: {self.name}: today: {str(self.device.emeter_today)} kwH')
+        logging.info(f'{fn_name()}: {self.name}: today: {str(self.device.emeter_today)} kwH')
         self.initial_amp_hours = kw_h_to_amp_hours(self.device.emeter_today, self.config.battery_voltage)
-        logging.error(f"BatteryPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
+        logging.info(f"BatteryPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
         self.total_amp_hours = 0.0
 
     def get_power_total(self) -> float:
         amp_hours = kw_h_to_amp_hours(self.device.emeter_today, self.config.battery_voltage)
-        logging.error(f'{fn_name()}: kw_h: {str(self.device.emeter_today)}, amp_hours: {str(amp_hours)}')
+        logging.info(f'{fn_name()}: kw_h: {str(self.device.emeter_today)}, amp_hours: {str(amp_hours)}')
         if self.initial_amp_hours < 0 or self.initial_amp_hours > amp_hours:
             self.initial_amp_hours = 0
         self.total_amp_hours = amp_hours - self.initial_amp_hours
-        return self.total_amp_hours
+        return self.total_amp_hours * CHARGER_EFFICIENCY
 
     def get_power(self) -> float:
         '''
@@ -399,11 +400,6 @@ class BatteryPlug():
         Returns:
             float: power in watts
         '''
-        # return self.device.emeter_realtime.power / 1000.0
-        kw_h: float = self.device.emeter_today
-        watt_hours: float = kw_h * 1000
-        amp_hours = watt_hours / self.config.battery_voltage
-        logging.error(f'{fn_name()}: amp_hours: {str(amp_hours)}')
         power: float = self.device.emeter_realtime.power
         logging.info(f'{fn_name()}: {str(power)}')
         return power
@@ -601,19 +597,19 @@ class BatteryStripPlug(BatteryPlug):
     async def reset_emeter_state(self) -> None:
         child_plug = self.device.children[self.plug_index]
         # await child_plug.erase_emeter_stats()
-        logging.error(f'BatteryStripPlug.{fn_name()}: {self.name}: today: {str(child_plug.emeter_today)} kwH')
+        logging.info(f'BatteryStripPlug.{fn_name()}: {self.name}: today: {str(child_plug.emeter_today)} kwH')
         self.initial_amp_hours = kw_h_to_amp_hours(child_plug.emeter_today, self.config.battery_voltage)
-        logging.error(f"BatteryStripPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
+        logging.info(f"BatteryStripPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
         self.total_amp_hours = 0.0
 
     def get_power_total(self) -> float:
         child_plug = self.device.children[self.plug_index]
         amp_hours = kw_h_to_amp_hours(child_plug.emeter_today, self.config.battery_voltage)
-        logging.error(f'{fn_name()}: kw_h: {str(child_plug.emeter_today)}, amp_hours: {str(amp_hours)}')
+        logging.info(f'{fn_name()}: kw_h: {str(child_plug.emeter_today)}, amp_hours: {str(amp_hours)}')
         if self.initial_amp_hours < 0 or self.initial_amp_hours > amp_hours:
             self.initial_amp_hours = 0
         self.total_amp_hours = amp_hours - self.initial_amp_hours
-        return self.total_amp_hours
+        return self.total_amp_hours * CHARGER_EFFICIENCY
 
     def get_power(self) -> float:
         '''
@@ -623,10 +619,6 @@ class BatteryStripPlug(BatteryPlug):
             float: power in watts
         '''
         child_plug = self.device.children[self.plug_index]
-        kw_h: float = child_plug.emeter_today
-        watt_hours: float = kw_h * 1000
-        amp_hours = watt_hours / self.config.battery_voltage
-        logging.error(f'{fn_name()}: amp_hours: {str(amp_hours)}')
         power: float = child_plug.emeter_realtime.power
         logging.info(f'BatteryStripPlug.get_power: {str(power)}')
         return power
@@ -847,7 +839,6 @@ async def init() -> int:
     manufacturer_plug_names = BatteryManagerState().plug_manufacturer_map.keys()
     for smart_device in found.values():
         await smart_device.update()
-        # await smart_device.erase_emeter_stats()
         await update_battery_plug_list(smart_device, manufacturer_plug_names)
     battery_count = len(battery_plug_list)
     if battery_count == 0:
@@ -1017,10 +1008,6 @@ async def analyze() -> bool:
             else:
                 start_threshold_logger.info(
                     f'!!!! DEBUG: analyze(): LOOP - start_threshold_check() is True, plug: {str(plug_name)}, power: {str(device_power_consumption)}')
-        else:
-            # not first time, accumulate amps
-            # plug.accumulate_amp_hours(device_power_consumption, probe_interval_secs)
-            pass
 
         if plug.stop_threshold_check(device_power_consumption):
             turn_off_plug = plug.check_full_charge() or plug.check_storage_mode()
@@ -1085,6 +1072,7 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
     success = False
     force_log(f'analyze_loop: START')
     while not success and retry_limit > 0:
+        logging.error(f'analyze_loop: LOOP TOP: success{success}, retry_limit: {retry_limit}')
         # check absolute stop limit
         if datetime.now() > final_stop_time:
             logging.error(
@@ -1123,7 +1111,8 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
             if retry_limit == 0:
                 success = False
             else:
-                await asyncio.sleep(RETRY_DELAY_SECS)
+                # await asyncio.sleep(RETRY_DELAY_SECS)
+                await asyncio.sleep(10)
         except BatteryPlugException as e:
             traceback_str = traceback.format_exc()
             logging.error(
@@ -1434,10 +1423,9 @@ def stop_quiet_mode() -> None:
 
 def force_log(log: str) -> None:
     log_level = logging.getLogger("").getEffectiveLevel()
-    # stop_quiet_mode()
+    logging.getLogger("").setLevel(logging.INFO)
     logging.info(log)
     logging.getLogger("").setLevel(log_level)
-    # start_quiet_mode()
 
 
 def run_battery_controller(max_hours_to_run: int,

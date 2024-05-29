@@ -1070,9 +1070,10 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
 
     retry_limit = RETRY_LIMIT
     success = False
+    exception_occurred = False
     force_log(f'analyze_loop: START')
     while not success and retry_limit > 0:
-        logging.error(f'analyze_loop: LOOP TOP: success{success}, retry_limit: {retry_limit}')
+        logging.error(f'analyze_loop: LOOP TOP: success: {success}, retry_limit: {retry_limit}')
         # check absolute stop limit
         if datetime.now() > final_stop_time:
             logging.error(
@@ -1096,33 +1097,31 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
                     await asyncio.sleep(probe_interval_secs)
             success = True
         except AnalyzeException as e:
-            retry_limit = retry_limit - 1
+            exception_occurred = True
             traceback_str = traceback.format_exc()
             logging.error(
-                f'!!!!!>>>>> ERROR ERROR ERROR ERROR retry_limit: {str(retry_limit)} <<<<<!!!!!')
-            logging.error(
                 f'!!!!!>>>>> ERROR in Execution e: {str(e)}<<<<<!!!!!')
-            logging.error(
-                f'!!!!!>>>>> ERROR traceback: {traceback_str} <<<<<!!!!!')
             if len(battery_plug_list) > 0:
                 logging.error(
                     '!!!!!>>>>> ERROR Attempting shutdown_plugs <<<<<!!!!!')
                 await shutdown_plugs()
-            if retry_limit == 0:
-                success = False
-            else:
-                # await asyncio.sleep(RETRY_DELAY_SECS)
-                await asyncio.sleep(10)
         except BatteryPlugException as e:
-            traceback_str = traceback.format_exc()
+            exception_occurred = True
             logging.error(
                 f'!!!!!>>>>> ERROR ERROR ERROR ERROR BatteryPlugException: {e} <<<<<!!!!!')
-            success = False
         except Exception as e:
+            exception_occurred = True
             logging.error(
                 f'!!!!!>>>>> ERROR ERROR ERROR ERROR Unexpected Exception: {e} <<<<<!!!!!')
             traceback.print_exc()
-            success = False
+        finally:
+            if exception_occurred:
+                traceback_str = traceback.format_exc()
+                logging.error(
+                    f'!!!!!>>>>> ERROR finally: retry_limit: {retry_limit}, traceback: {traceback_str} <<<<<!!!!!')
+                retry_limit = retry_limit - 1
+                if retry_limit > 0:
+                    await asyncio.sleep(RETRY_DELAY_SECS)
 
     return success
 

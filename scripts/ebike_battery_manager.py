@@ -1069,10 +1069,11 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
     battery_plug_list = BatteryManagerState().battery_plug_list
 
     retry_limit = RETRY_LIMIT
+    init_complete = False
     success = False
-    exception_occurred = False
     force_log(f'analyze_loop: START')
     while not success and retry_limit > 0:
+        exception_occurred = False
         logging.error(f'analyze_loop: LOOP TOP: success: {success}, retry_limit: {retry_limit}')
         # check absolute stop limit
         if datetime.now() > final_stop_time:
@@ -1080,13 +1081,15 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
                 f"max runtime {BatteryManagerState().max_hours_to_run} hours exceeded, exit analyze_loop")
             break
         try:
-            battery_plug_ct = await init()
-            if battery_plug_ct == 0:
-                logging.error("unexpectedly empty battery_plug_list")
-                raise AnalyzeException('ERROR, unexpectedly empty battery_plug_list')
-            else:
-                logging.info(
-                    f'SUCCESSFULLY found: {str(battery_plug_ct)} smart battery plugs')
+            if not init_complete:
+                battery_plug_ct = await init()
+                if battery_plug_ct == 0:
+                    logging.error("unexpectedly empty battery_plug_list")
+                    raise AnalyzeException('ERROR, unexpectedly empty battery_plug_list')
+                else:
+                    init_complete = True
+                    logging.info(
+                        f'SUCCESSFULLY found: {str(battery_plug_ct)} smart battery plugs')
 
             await setup()
             await asyncio.sleep(SETTLE_TIME_SECS)
@@ -1098,7 +1101,6 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
             success = True
         except AnalyzeException as e:
             exception_occurred = True
-            traceback_str = traceback.format_exc()
             logging.error(
                 f'!!!!!>>>>> ERROR in Execution e: {str(e)}<<<<<!!!!!')
             if len(battery_plug_list) > 0:
@@ -1113,7 +1115,6 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
             exception_occurred = True
             logging.error(
                 f'!!!!!>>>>> ERROR ERROR ERROR ERROR Unexpected Exception: {e} <<<<<!!!!!')
-            traceback.print_exc()
         finally:
             if exception_occurred:
                 traceback_str = traceback.format_exc()
@@ -1151,7 +1152,11 @@ async def shutdown_plugs() -> None:
         return
     finally:      
         delete_plugs(battery_plug_list, plugs_to_delete)
-    logging.info('>>>>> shutdown_plugs OK <<<<<')
+        # We expect battery_plug_list to be empty at this point
+        if len(battery_plug_list) > 0:
+            logging.error(f'UNEXPECTED, battery_plug_list not empty: {len(battery_plug_list)}')
+            battery_plug_list.clear()
+        logging.info('>>>>> shutdown_plugs EXIT <<<<<')
 
 
 def get_device_config(plug_name: str) -> DeviceConfig:

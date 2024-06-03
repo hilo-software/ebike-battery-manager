@@ -25,6 +25,7 @@ CLOSE_MISS_MAX = 3
 BATTERY_PREFIX = 'battery_'
 RETRY_DELAY_SECS = 60 * 2
 SETTLE_TIME_SECS = 30
+PLUG_SETTLE_TIME_SECS = 10
 COARSE_PROBE_INTERVAL_SECS = 10 * 60
 FINE_PROBE_INTERVAL_SECS = 5 * 60
 COARSE_PROBE_THRESHOLD_MARGIN = 20.0
@@ -595,12 +596,15 @@ class BatteryStripPlug(BatteryPlug):
         self.plug_index = plug_index
 
     async def reset_emeter_state(self) -> None:
+        force_log(f'BatteryStripPlug.{fn_name()}: {self.name}: ENTRY')
         child_plug = self.device.children[self.plug_index]
         # await child_plug.erase_emeter_stats()
         logging.info(f'BatteryStripPlug.{fn_name()}: {self.name}: today: {str(child_plug.emeter_today)} kwH')
         self.initial_amp_hours = kw_h_to_amp_hours(child_plug.emeter_today, self.config.battery_voltage)
-        logging.info(f"BatteryStripPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
+        # logging.info(f"BatteryStripPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
+        force_log(f"BatteryStripPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
         self.total_amp_hours = 0.0
+        force_log(f'BatteryStripPlug.{fn_name()}: {self.name}: EXIT')
 
     def get_power_total(self) -> float:
         child_plug = self.device.children[self.plug_index]
@@ -859,7 +863,9 @@ async def setup() -> None:
     force_log('>>>>> setup ENTRY')
     for plug in battery_plug_list:
         await plug.update()
+        await asyncio.sleep(PLUG_SETTLE_TIME_SECS)
         await plug.reset_emeter_state()
+        force_log('>>>>> setup after reset_emeter_state()')
         plug_retry_setup_ct: int = 0
         while plug_retry_setup_ct < PLUG_RETRY_SETUP_LIMIT:
             logging.info(f'>>>>> setup plug: {plug.name}')
@@ -1091,6 +1097,7 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
                     logging.info(
                         f'SUCCESSFULLY found: {str(battery_plug_ct)} smart battery plugs')
 
+            await asyncio.sleep(SETTLE_TIME_SECS)
             await setup()
             await asyncio.sleep(SETTLE_TIME_SECS)
             charging = True
@@ -1117,10 +1124,10 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
                 f'!!!!!>>>>> ERROR ERROR ERROR ERROR Unexpected Exception: {e} <<<<<!!!!!')
         finally:
             if exception_occurred:
+                retry_limit = retry_limit - 1
                 traceback_str = traceback.format_exc()
                 logging.error(
                     f'!!!!!>>>>> ERROR finally: retry_limit: {retry_limit}, traceback: {traceback_str} <<<<<!!!!!')
-                retry_limit = retry_limit - 1
                 if retry_limit > 0:
                     await asyncio.sleep(RETRY_DELAY_SECS)
 
@@ -1133,7 +1140,7 @@ async def shutdown_plugs() -> None:
     Not part of the normal shutdown
     '''
     battery_plug_list = BatteryManagerState().battery_plug_list
-    logging.info(f'>>>>> shutdown_plugs <<<<<')
+    logging.info(f'>>>>> {fn_name()} ENTRY: battery_plug_list: {len(battery_plug_list)} <<<<<')
     try:
         plugs_to_delete = []
         for plug in battery_plug_list:
@@ -1141,22 +1148,22 @@ async def shutdown_plugs() -> None:
             await plug.turn_off()
             plugs_to_delete.append(plug)
     except BatteryPlugException as e:
-        logging.error(f'FATAL ERROR: shutdown_plugs: {str(e)}')
+        logging.error(f'FATAL ERROR: {fn_name()}: {str(e)}')
         logging.error(
             'FATAL ERROR: Unable to shutdown plugs, check plug status manually')
         return
     except Exception as e:
-        logging.error(f'FATAL ERROR: Unexpected Exception in shutdown_plugs: {str(e)}')
+        logging.error(f'FATAL ERROR: {fn_name()}:Unexpected Exception in shutdown_plugs: {str(e)}')
         logging.error(
-            'FATAL ERROR: Unable to shutdown plugs, check plug status manually')
+            f'FATAL ERROR: {fn_name()}:Unable to shutdown plugs, check plug status manually')
         return
     finally:      
         delete_plugs(battery_plug_list, plugs_to_delete)
         # We expect battery_plug_list to be empty at this point
         if len(battery_plug_list) > 0:
-            logging.error(f'UNEXPECTED, battery_plug_list not empty: {len(battery_plug_list)}')
+            logging.error(f'UNEXPECTED, {fn_name()}:battery_plug_list not empty: {len(battery_plug_list)}')
             battery_plug_list.clear()
-        logging.info('>>>>> shutdown_plugs EXIT <<<<<')
+        logging.info(f'>>>>> {fn_name()}: EXIT <<<<<')
 
 
 def get_device_config(plug_name: str) -> DeviceConfig:
@@ -1598,6 +1605,34 @@ def setup_logging_handlers(log_file: str) -> list:
     return logging_handlers
 
 
+# def exit_handler():
+#     """
+#     This function is registered with atexit to handle graceful shutdown of async tasks.
+#     It attempts to get the current event loop, and if successful, it runs the shutdown_plugs
+#     coroutine within that loop. If the loop is not running, it creates a new event loop
+#     to run the shutdown_plugs coroutine.
+#     """
+#     logging.info("Executing exit_handler")
+
+#     try:
+#         loop = asyncio.get_event_loop()
+#     except RuntimeError as e:
+#         logging.error(f"Failed to get event loop: {e}")
+#         # Create a new event loop if the current one is not available
+#         loop = asyncio.new_event_loop()
+#         asyncio.set_event_loop(loop)
+
+#     if loop.is_running():
+#         logging.info("Running shutdown_plugs within the current event loop")
+#         loop.create_task(shutdown_plugs())
+#     else:
+#         logging.info("Running shutdown_plugs in a new event loop")
+#         loop.run_until_complete(shutdown_plugs())
+
+#     # Close the event loop after running shutdown_plugs
+#     loop.close()
+#     logging.info("Event loop closed")
+
 def exit_handler():
     """
     This function is registered with atexit to handle graceful shutdown of async tasks.
@@ -1609,23 +1644,23 @@ def exit_handler():
 
     try:
         loop = asyncio.get_event_loop()
+        if loop.is_running():
+            logging.info("Running shutdown_plugs within the current event loop")
+            loop.create_task(shutdown_plugs())
+        else:
+            logging.info("Running shutdown_plugs in the existing event loop")
+            loop.run_until_complete(shutdown_plugs())
     except RuntimeError as e:
         logging.error(f"Failed to get event loop: {e}")
         # Create a new event loop if the current one is not available
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-
-    if loop.is_running():
-        logging.info("Running shutdown_plugs within the current event loop")
-        loop.create_task(shutdown_plugs())
-    else:
         logging.info("Running shutdown_plugs in a new event loop")
         loop.run_until_complete(shutdown_plugs())
+        loop.close()
 
-    # Close the event loop after running shutdown_plugs
-    loop.close()
     logging.info("Event loop closed")
-
+    
 def main() -> None:
     global start_threshold_logger
 

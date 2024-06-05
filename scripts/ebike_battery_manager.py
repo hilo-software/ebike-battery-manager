@@ -380,7 +380,6 @@ class BatteryPlug():
         await self.device.update()
 
     async def reset_emeter_state(self) -> None:
-        # await self.device.erase_emeter_stats()
         logging.info(f'{fn_name()}: {self.name}: today: {str(self.device.emeter_today)} kwH')
         self.initial_amp_hours = kw_h_to_amp_hours(self.device.emeter_today, self.config.battery_voltage)
         logging.info(f"BatteryPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
@@ -596,15 +595,14 @@ class BatteryStripPlug(BatteryPlug):
         self.plug_index = plug_index
 
     async def reset_emeter_state(self) -> None:
-        force_log(f'BatteryStripPlug.{fn_name()}: {self.name}: ENTRY')
+        logging.info(f'BatteryStripPlug.{fn_name()}: {self.name}: ENTRY')
         child_plug = self.device.children[self.plug_index]
         # await child_plug.erase_emeter_stats()
         logging.info(f'BatteryStripPlug.{fn_name()}: {self.name}: today: {str(child_plug.emeter_today)} kwH')
         self.initial_amp_hours = kw_h_to_amp_hours(child_plug.emeter_today, self.config.battery_voltage)
-        # logging.info(f"BatteryStripPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
-        force_log(f"BatteryStripPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
+        logging.info(f"BatteryStripPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
         self.total_amp_hours = 0.0
-        force_log(f'BatteryStripPlug.{fn_name()}: {self.name}: EXIT')
+        logging.info(f'BatteryStripPlug.{fn_name()}: {self.name}: EXIT')
 
     def get_power_total(self) -> float:
         child_plug = self.device.children[self.plug_index]
@@ -1563,13 +1561,9 @@ def run_battery_controller(max_hours_to_run: int,
                 plug_name = plug.plug.name
                 total_amp_hours = plug.plug.total_amp_hours
                 logging.info(
-                    f'    {plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]}')
+                    f'    {plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]} added ~{total_amp_hours:.2f} Ah')
                 start_threshold_logger.info(
-                    f'    {plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]}')
-                logging.info(
-                    f'    {plug_name}, added {total_amp_hours:.2f} Ah')
-                start_threshold_logger.info(
-                    f'    {plug_name}, added {total_amp_hours:.2f} Ah')
+                    f'    {plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]} added ~{total_amp_hours:.2f} Ah')
             else:
                 logging.info(
                     f'    {plug.plug_name}, charged for unknown duration')

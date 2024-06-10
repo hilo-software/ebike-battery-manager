@@ -863,7 +863,7 @@ async def setup() -> None:
         await plug.update()
         await asyncio.sleep(PLUG_SETTLE_TIME_SECS)
         await plug.reset_emeter_state()
-        force_log('>>>>> setup after reset_emeter_state()')
+        logging.info('>>>>> setup after reset_emeter_state()')
         plug_retry_setup_ct: int = 0
         while plug_retry_setup_ct < PLUG_RETRY_SETUP_LIMIT:
             logging.info(f'>>>>> setup plug: {plug.name}')
@@ -902,10 +902,10 @@ async def setup() -> None:
             logging.warning(
                 f'!!!!! WARNING !!!!!, no power usage on plug: {plug.name}')
         else:
-            force_log(
+            logging.info(
                 f'>>>>> setup -- plug: {plug.name} appears active, retries: {plug_retry_setup_ct}')
 
-    force_log('>>>>> setup EXIT')
+    logging.info('>>>>> setup EXIT')
 
 
 def delete_plugs(battery_plug_list: list, plugs_to_delete: list) -> None:

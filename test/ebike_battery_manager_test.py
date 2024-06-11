@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 import pytest
+import logging
 import asyncio
+from argparse import Namespace
 from kasa import SmartDevice
 from unittest.mock import MagicMock, patch, AsyncMock
 from datetime import datetime, timedelta
@@ -119,6 +121,13 @@ def test_battery_manager_simple_state():
     assert target.BatteryManagerState().storage_charge_cycle_limit == target.STORAGE_CHARGE_CYCLE_LIMIT_DEFAULT
     assert target.BatteryManagerState().analyze_first_entry == True
     assert target.BatteryManagerState().quiet_mode == False
+    assert target.BatteryManagerState().scan_for_battery_prefix == False
+    assert target.BatteryManagerState().nominal_charge_start_power_threshold == target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT
+    assert target.BatteryManagerState().nominal_charge_stop_power_threshold == target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT
+    assert target.BatteryManagerState().full_charge_power_threshold == target.FULL_CHARGE_THRESHOLD_DEFAULT
+    assert target.BatteryManagerState().storage_charge_start_power_threshold == target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT
+    assert target.BatteryManagerState().storage_charge_stop_power_threshold == target.STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT
+    assert target.BatteryManagerState().log_file == target.DEFAULT_LOG_FILE
     # test state setters
     target.BatteryManagerState().full_charge_repeat_limit = target.FULL_CHARGE_REPEAT_LIMIT - 1
     assert target.BatteryManagerState().full_charge_repeat_limit == target.FULL_CHARGE_REPEAT_LIMIT - 1
@@ -165,6 +174,41 @@ def test_battery_manager_simple_state():
     target.BatteryManagerState().quiet_mode = False
     assert target.BatteryManagerState().quiet_mode == False
 
+    target.BatteryManagerState().scan_for_battery_prefix = True
+    assert target.BatteryManagerState().scan_for_battery_prefix == True
+    target.BatteryManagerState().scan_for_battery_prefix = False
+    assert target.BatteryManagerState().scan_for_battery_prefix == False
+
+    target.BatteryManagerState().nominal_charge_start_power_threshold = target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT - 1
+    assert target.BatteryManagerState().nominal_charge_start_power_threshold == target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT - 1
+    target.BatteryManagerState().nominal_charge_start_power_threshold = target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT
+    assert target.BatteryManagerState().nominal_charge_start_power_threshold == target.NOMINAL_CHARGE_START_THRESHOLD_DEFAULT
+
+    target.BatteryManagerState().nominal_charge_stop_power_threshold = target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT - 1
+    assert target.BatteryManagerState().nominal_charge_stop_power_threshold == target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT - 1
+    target.BatteryManagerState().nominal_charge_stop_power_threshold = target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT
+    assert target.BatteryManagerState().nominal_charge_stop_power_threshold == target.NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT
+
+    target.BatteryManagerState().full_charge_power_threshold = target.FULL_CHARGE_THRESHOLD_DEFAULT - 1
+    assert target.BatteryManagerState().full_charge_power_threshold == target.FULL_CHARGE_THRESHOLD_DEFAULT - 1
+    target.BatteryManagerState().full_charge_power_threshold = target.FULL_CHARGE_THRESHOLD_DEFAULT
+    assert target.BatteryManagerState().full_charge_power_threshold == target.FULL_CHARGE_THRESHOLD_DEFAULT
+
+    target.BatteryManagerState().storage_charge_start_power_threshold = target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT - 1
+    assert target.BatteryManagerState().storage_charge_start_power_threshold == target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT - 1
+    target.BatteryManagerState().storage_charge_start_power_threshold = target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT
+    assert target.BatteryManagerState().storage_charge_start_power_threshold == target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT
+
+    target.BatteryManagerState().storage_charge_stop_power_threshold = target.STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT - 1
+    assert target.BatteryManagerState().storage_charge_stop_power_threshold == target.STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT - 1
+    target.BatteryManagerState().storage_charge_stop_power_threshold = target.STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT
+    assert target.BatteryManagerState().storage_charge_stop_power_threshold == target.STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT
+
+    target.BatteryManagerState().log_file = 'FUBAR.LOG'
+    assert target.BatteryManagerState().log_file == 'FUBAR.LOG'
+    target.BatteryManagerState().log_file = target.DEFAULT_LOG_FILE
+    assert target.BatteryManagerState().log_file == target.DEFAULT_LOG_FILE
+
 
 def test_battery_manager_container_default_state():
     # test state
@@ -177,6 +221,74 @@ def test_battery_manager_container_default_state():
     assert len(target.BatteryManagerState().plug_storage_list) == 0
     assert len(target.BatteryManagerState().plug_full_charge_list) == 0
     assert len(target.BatteryManagerState().active_plugs) == 0
+
+
+@pytest.mark.parametrize("args, expected_logs", [
+    # Test cases for different overrides
+    (Namespace(nominal_start_charge_threshold="5.0", nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+     ["INFO:root:>>>>> OVERRIDE nominal_charge_start_power_threshold: 5.0"]),
+    
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff="10.0", full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+     ["INFO:root:>>>>> OVERRIDE nominal_charge_stop_power_threshold: 10.0"]),
+    
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff="15.0", storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+     ["INFO:root:>>>>> OVERRIDE full_charge_power_threshold: 15.0"]),
+    
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold="20.0", storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+     ["INFO:root:>>>>> OVERRIDE storage_charge_start_power_threshold: 20.0"]),
+    
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff="25.0", full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+     ["INFO:root:>>>>> OVERRIDE storage_charge_stop_power_threshold: 25.0"]),
+    
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=2, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+     ["INFO:root:>>>>> OVERRIDE full_charge_repeat_limit: 2"]),
+    
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=5, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+     ["INFO:root:>>>>> OVERRIDE max_cycles_in_fine_mode: 5"]),
+    
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=3, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+     ["INFO:root:>>>>> OVERRIDE storage_charge_cycle_limit: 3"]),
+    
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=10, scan_for_battery_prefix=None, quiet_mode=None),
+     ["INFO:root:>>>>> OVERRIDE max_hours_to_run: 10"]),
+    
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=True, quiet_mode=None),
+     ["INFO:root:>>>>> OVERRIDE scan_for_battery_prefix: True"]),
+    
+    # Test cases for invalid values
+    (Namespace(nominal_start_charge_threshold="invalid", nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+     ["ERROR:root:ERROR, Invalid nominal_charge_start_charge_threshold: could not convert string to float: 'invalid'"]),
+    
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff="invalid", full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+     ["ERROR:root:ERROR, Invalid nominal_charge_stop_power_threshold: could not convert string to float: 'invalid'"]),
+    
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff="invalid", storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+     ["ERROR:root:ERROR, Invalid full_charge_power_threshold: could not convert string to float: 'invalid'"]),
+    
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold="invalid", storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+     ["ERROR:root:ERROR, Invalid storage_charge_start_power_threshold: could not convert string to float: 'invalid'"]),
+    
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff="invalid", full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+     ["ERROR:root:ERROR, Invalid storage_charge_stop_power_threshold: could not convert string to float: 'invalid'"]),
+    
+    # Test case for quiet mode
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=True),
+     [])
+])
+
+def test_process_overrides(args, expected_logs, caplog):
+    '''
+    Written by ChatGPT 4
+
+    Args:
+        args (_type_): _description_
+        expected_logs (_type_): _description_
+        caplog (_type_): _description_
+    '''
+    with caplog.at_level(logging.INFO):
+        target.process_overrides(args)
+    log_messages = [f"{record.levelname}:{record.name}:{record.message}" for record in caplog.records]
+    assert log_messages == expected_logs
 
 
 def test_setup_logging_handlers():

@@ -1158,10 +1158,10 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
     retry_limit = RETRY_LIMIT
     init_complete = False
     success = False
-    force_log(f'analyze_loop: START')
+    logging.info(f'analyze_loop: START')
     while not success and retry_limit > 0:
         exception_occurred = False
-        logging.error(f'analyze_loop: LOOP TOP: success: {success}, retry_limit: {retry_limit}')
+        logging.info(f'analyze_loop: LOOP TOP: success: {success}, retry_limit: {retry_limit}')
         # check absolute stop limit
         if datetime.now() > final_stop_time:
             logging.error(

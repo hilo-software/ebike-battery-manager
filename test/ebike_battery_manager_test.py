@@ -372,11 +372,18 @@ async def test_battery_strip_plug_exception():
 
 
 @pytest.mark.asyncio
+async def test_scan_for_battery_prefix():
+    with patch('kasa.SmartDevice', new_callable=AsyncMock) as mock:
+        reset_device_config()
+    pass
+
+@pytest.mark.asyncio
 async def test_update_battery_plug_list():
     with patch('kasa.SmartDevice', new_callable=AsyncMock) as mock:
         reset_device_config()
         save_battery_plug_list = target.BatteryManagerState().battery_plug_list
         target.BatteryManagerState().battery_plug_list = []
+        target.BatteryManagerState().scan_for_battery_prefix = False
         mock_smart_device_plug = mock.return_value
         mock_smart_device_plug.is_plug = True
         mock_smart_device_plug.is_strip = False
@@ -384,6 +391,14 @@ async def test_update_battery_plug_list():
         assert mock_smart_device_plug.is_plug == True
         assert mock_smart_device_plug.alias == 'rad_battery_1'
         assert len(target.BatteryManagerState().battery_plug_list) == 0
+        assert target.BatteryManagerState().scan_for_battery_prefix == False
+        manufacturer_plug_names = []
+        await target.update_battery_plug_list(mock_smart_device_plug, manufacturer_plug_names)
+        assert len(target.BatteryManagerState().battery_plug_list) == 0
+        target.BatteryManagerState().scan_for_battery_prefix = True
+        await target.update_battery_plug_list(mock_smart_device_plug, manufacturer_plug_names)
+        assert len(target.BatteryManagerState().battery_plug_list) == 1
+        target.BatteryManagerState().battery_plug_list = []
         result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
         assert result == True
         manufacturer_plug_names = target.BatteryManagerState().plug_manufacturer_map.keys()
@@ -403,6 +418,16 @@ async def test_update_battery_plug_list():
         mock_smart_device_strip.children = mock_strip_children
         await target.update_battery_plug_list(mock_smart_device_strip, manufacturer_plug_names)
         assert len(target.BatteryManagerState().battery_plug_list) == 3
+        target.BatteryManagerState().battery_plug_list = []
+        manufacturer_plug_names = []
+        target.BatteryManagerState().scan_for_battery_prefix = False
+        await target.update_battery_plug_list(mock_smart_device_strip, manufacturer_plug_names)
+        assert len(target.BatteryManagerState().battery_plug_list) == 0
+        target.BatteryManagerState().scan_for_battery_prefix = True
+        await target.update_battery_plug_list(mock_smart_device_strip, manufacturer_plug_names)
+        assert len(target.BatteryManagerState().battery_plug_list) == 2
+        target.BatteryManagerState().scan_for_battery_prefix = False
+        # Restore original battery_plug_list
         target.BatteryManagerState().battery_plug_list = save_battery_plug_list
 
 @pytest.mark.asyncio

@@ -1810,14 +1810,6 @@ def process_overrides(args) -> None:
                 f'>>>>> OVERRIDE max_hours_to_run: {str(BatteryManagerState().max_hours_to_run)}')
         except (ValueError, TypeError, OverflowError) as e:
             logging.error(f'ERROR, Invalid max_hours_to_run {str(BatteryManagerState().max_hours_to_run)}, exception: {str(e)}')
-    if args.scan_for_battery_prefix != None:
-        try:
-            BatteryManagerState().scan_for_battery_prefix = args.scan_for_battery_prefix
-            logging.info(
-                f'>>>>> OVERRIDE scan_for_battery_prefix: {BatteryManagerState().scan_for_battery_prefix}'
-            )
-        except ValueError as e:
-            logging.error(f"ERROR Invalid bool expected: {str(BatteryManagerState().scan_for_battery_prefix)}, exception: {str(e)}")
     BatteryManagerState().quiet_mode = args.quiet_mode
 
     

@@ -176,6 +176,18 @@ def test_battery_manager_simple_state():
     target.BatteryManagerState().quiet_mode = False
     assert target.BatteryManagerState().quiet_mode == False
 
+    default_logging_mode = target.BatteryManagerState().logging_mode
+    target.BatteryManagerState().logging_mode = target.LoggingMode.SUPER_QUIET
+    assert target.BatteryManagerState().logging_mode == target.LoggingMode.SUPER_QUIET
+    target.BatteryManagerState().logging_mode = target.LoggingMode.QUIET
+    assert target.BatteryManagerState().logging_mode == target.LoggingMode.QUIET
+    target.BatteryManagerState().logging_mode = target.LoggingMode.VERBOSE
+    assert target.BatteryManagerState().logging_mode == target.LoggingMode.VERBOSE
+    target.BatteryManagerState().logging_mode = target.LoggingMode.NOISY
+    assert target.BatteryManagerState().logging_mode == target.LoggingMode.NOISY
+    target.BatteryManagerState().logging_mode = default_logging_mode
+    assert target.BatteryManagerState().logging_mode == default_logging_mode
+
     target.BatteryManagerState().scan_for_battery_prefix = True
     assert target.BatteryManagerState().scan_for_battery_prefix == True
     target.BatteryManagerState().scan_for_battery_prefix = False

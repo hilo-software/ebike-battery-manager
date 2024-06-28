@@ -99,6 +99,7 @@ class BatteryManagerState:
     _storage_charge_cycle_limit: int
     _analyze_first_entry: bool
     _quiet_mode: bool
+    _logging_mode: "LoggingMode"
     _default_config: "DeviceConfig"
     _device_config: Dict[str, "DeviceConfig"]
     _plug_manufacturer_map: Dict[str, str]
@@ -132,6 +133,7 @@ class BatteryManagerState:
             cls._instance._plug_full_charge_list = []
             cls._instance._analyze_first_entry = True
             cls._instance._quiet_mode = False
+            cls._instance._logging_mode = LoggingMode.SUPER_QUIET
             cls._instance._default_config = None
             cls._instance._active_plugs = set()
             cls._scan_for_battery_prefix = False
@@ -215,6 +217,14 @@ class BatteryManagerState:
     @quiet_mode.setter
     def quiet_mode(self, _quiet_mode: bool) -> None:
         self._quiet_mode = _quiet_mode
+
+    @property
+    def logging_mode(self) -> "LoggingMode":
+        return self._logging_mode
+    
+    @logging_mode.setter
+    def logging_mode(self, _logging_mode: "LoggingMode") -> None:
+        self._logging_mode = _logging_mode
 
     @property
     def default_config(self) -> "DeviceConfig":
@@ -397,8 +407,15 @@ class BatteryPlugException(Exception):
 
 class BatteryChargeMode(Enum):
     NOMINAL = 1
-    FULL = 2
+    FULL    = 2
     STORAGE = 3
+
+
+class LoggingMode(Enum):
+    SUPER_QUIET = 1
+    QUIET       = 2
+    VERBOSE     = 3
+    NOISY       = 4
 
 
 @dataclass
@@ -1540,58 +1557,25 @@ def force_log(log: str) -> None:
     logging.getLogger("").setLevel(log_level)
 
 
-def run_battery_controller(max_hours_to_run: int,
+def log_start_state(max_hours_to_run: int,
                            log_file: str,
                            config_file: str,
-                           email: str,
-                           app_key: str,
-                           test_mode: bool) -> None:
-    '''
-    main entry point, expects any global defaults to be settled by this time.
-    Currently in script mode, main() will do that work.  When not in script mode,
-    users of this entry point must do any setup work if the global defaults are not
-    acceptable.
-
-
-    Args:
-        nominal_charge_start_power_threshold (float): 
-        nominal_charge_stop_power_threshold (float): 
-        full_charge_power_threshold (float): 
-        storage_charge_start_power_threshold (float): 
-        storage_charge_stop_power_threshold (float): 
-        storage_charge_cycle_limit (int): 
-        max_hours_to_run (int): 
-        log_file (str): 
-        config_file (str): 
-        email (str): 
-        app_key (str): 
-        test_mode (bool): 
-    '''
-    global start_threshold_logger
-
-    start_threshold_logger.info(f"test test test")
-    start_threshold_logger.error(f"test test test")
-
-    plug_full_charge_list = BatteryManagerState().plug_full_charge_list
-    device_config = BatteryManagerState().device_config
-    plug_storage_list = BatteryManagerState().plug_storage_list
-    active_plugs: Set[ActivePlug] = BatteryManagerState().active_plugs
-
-    logging.info(f'Script logs are in {log_file}')
-    start = datetime.now()
-
-    config_file_is_valid = False
-    if config_file != None:
-        config_file_is_valid = verify_config_file(config_file)
-    default_config: DeviceConfig = BatteryManagerState().default_config
-    device_config[DEFAULT_CONFIG_TAG] = default_config
-
+                           test_mode: bool,
+                           config_file_is_valid: bool
+                           ) -> None:
     logging.info('>>>>> START <<<<<')
-    logging.info(f'  ---- test_mode: {str(test_mode)}')
+    if BatteryManagerState().logging_mode == LoggingMode.SUPER_QUIET:
+        return
+    device_config = BatteryManagerState().device_config
+    default_config: DeviceConfig = BatteryManagerState().default_config
+
+    if test_mode:
+        logging.info(f'  ---- test_mode: {str(test_mode)}')
     logging.info(f'  ---- quiet_mode: {str(BatteryManagerState().quiet_mode)}')
-    logging.info(f'  ---- force_full_charge: {str(BatteryManagerState().force_full_charge)}')
-    logging.info(
-        f'  ---- full_charge_repeat_limit: {str(BatteryManagerState().full_charge_repeat_limit)}')
+    if BatteryManagerState().force_full_charge:
+        logging.info(f'  ---- force_full_charge: {str(BatteryManagerState().force_full_charge)}')
+        logging.info(
+            f'  ---- full_charge_repeat_limit: {str(BatteryManagerState().full_charge_repeat_limit)}')
     logging.info(
         f'  ---- max_cycles_in_fine_mode: {str(BatteryManagerState().max_cycles_in_fine_mode)}')
     logging.info(f'  ---- max_hours_to_run: {str(max_hours_to_run)}')
@@ -1639,6 +1623,59 @@ def run_battery_controller(max_hours_to_run: int,
                 f'  -------- charger_max_hours_to_run: {str(device_config[manufacturer].charger_max_hours_to_run)}')
             logging.info(
                 f'  -------- battery_voltage: {str(device_config[manufacturer].battery_voltage)}')
+
+
+def run_battery_controller(max_hours_to_run: int,
+                           log_file: str,
+                           config_file: str,
+                           email: str,
+                           app_key: str,
+                           test_mode: bool) -> None:
+    '''
+    main entry point, expects any global defaults to be settled by this time.
+    Currently in script mode, main() will do that work.  When not in script mode,
+    users of this entry point must do any setup work if the global defaults are not
+    acceptable.
+
+
+    Args:
+        nominal_charge_start_power_threshold (float): 
+        nominal_charge_stop_power_threshold (float): 
+        full_charge_power_threshold (float): 
+        storage_charge_start_power_threshold (float): 
+        storage_charge_stop_power_threshold (float): 
+        storage_charge_cycle_limit (int): 
+        max_hours_to_run (int): 
+        log_file (str): 
+        config_file (str): 
+        email (str): 
+        app_key (str): 
+        test_mode (bool): 
+    '''
+    global start_threshold_logger
+
+    start_threshold_logger.info(f"test test test")
+    start_threshold_logger.error(f"test test test")
+
+    plug_full_charge_list = BatteryManagerState().plug_full_charge_list
+    device_config = BatteryManagerState().device_config
+    plug_storage_list = BatteryManagerState().plug_storage_list
+    active_plugs: Set[ActivePlug] = BatteryManagerState().active_plugs
+
+    logging.info(f'Script logs are in {log_file}')
+    start = datetime.now()
+
+    config_file_is_valid = False
+    if config_file != None:
+        config_file_is_valid = verify_config_file(config_file)
+    default_config: DeviceConfig = BatteryManagerState().default_config
+    device_config[DEFAULT_CONFIG_TAG] = default_config
+
+    log_start_state(max_hours_to_run=max_hours_to_run, 
+                    log_file=log_file, 
+                    config_file=config_file, 
+                    test_mode=test_mode, 
+                    config_file_is_valid=config_file_is_valid)
     start_quiet_mode()
     if len(plug_storage_list) > 0:
         logging.info(f'  ---- plugs in storage mode: ')
@@ -1707,34 +1744,6 @@ def setup_logging_handlers(log_file: str) -> list:
     ]
     return logging_handlers
 
-
-# def exit_handler():
-#     """
-#     This function is registered with atexit to handle graceful shutdown of async tasks.
-#     It attempts to get the current event loop, and if successful, it runs the shutdown_plugs
-#     coroutine within that loop. If the loop is not running, it creates a new event loop
-#     to run the shutdown_plugs coroutine.
-#     """
-#     logging.info("Executing exit_handler")
-
-#     try:
-#         loop = asyncio.get_event_loop()
-#     except RuntimeError as e:
-#         logging.error(f"Failed to get event loop: {e}")
-#         # Create a new event loop if the current one is not available
-#         loop = asyncio.new_event_loop()
-#         asyncio.set_event_loop(loop)
-
-#     if loop.is_running():
-#         logging.info("Running shutdown_plugs within the current event loop")
-#         loop.create_task(shutdown_plugs())
-#     else:
-#         logging.info("Running shutdown_plugs in a new event loop")
-#         loop.run_until_complete(shutdown_plugs())
-
-#     # Close the event loop after running shutdown_plugs
-#     loop.close()
-#     logging.info("Event loop closed")
 
 def exit_handler():
     """
@@ -1842,6 +1851,10 @@ def process_overrides(args) -> None:
         except (ValueError, TypeError, OverflowError) as e:
             logging.error(f'ERROR, Invalid max_hours_to_run {str(BatteryManagerState().max_hours_to_run)}, exception: {str(e)}')
     BatteryManagerState().quiet_mode = args.quiet_mode
+    if args.quiet_mode:
+        BatteryManagerState().logging_mode = LoggingMode.SUPER_QUIET
+    else:
+        BatteryManagerState().logging_mode = LoggingMode.VERBOSE
 
     
 def main() -> None:

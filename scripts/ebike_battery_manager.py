@@ -1565,6 +1565,9 @@ def log_start_state(max_hours_to_run: int,
                            ) -> None:
     logging.info('>>>>> START <<<<<')
     if BatteryManagerState().logging_mode == LoggingMode.SUPER_QUIET:
+        # Even in SUPER_QUIET, forcing a full charge is important to know
+        if BatteryManagerState().force_full_charge:
+            logging.info(f'  ---- force_full_charge: True')
         return
     device_config = BatteryManagerState().device_config
     default_config: DeviceConfig = BatteryManagerState().default_config

@@ -68,6 +68,7 @@ def execute_before_any_test():
     global rad_config, battery_plug_list
     assert len(target.BatteryManagerState().device_config) == 0
     assert len(target.BatteryManagerState().battery_plug_list) == 0
+    target.logger = target.init_logging()
     target.BatteryManagerState().device_config['Rad'] = rad_config
     target.BatteryManagerState().device_config['Lectric'] = lectric_config
     create_default_device_config()

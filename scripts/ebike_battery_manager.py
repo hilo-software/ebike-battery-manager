@@ -60,6 +60,8 @@ PLUG_RETRY_SETUP_LIMIT = 3
 MAX_RUNTIME_HOURS_DEFAULT = 12
 DEFAULT_BATTERY_VOLTAGE = 48.0
 CHARGER_EFFICIENCY = 0.9
+CUSTOM_LEVEL_NUM = 25
+CUSTOM_LEVEL_NAME = "CUSTOM"
 
 # mandatory_config_manufacturer_tags = [FULL_CHARGE_THRESHOLD_TAG, COARSE_PROBE_THRESHOLD_MARGIN_TAG]
 # one_of_config_manufacturer_threshold_tags = [NOMINAL_START_THRESHOLD_TAG, NOMINAL_STOP_THRESHOLD_TAG]
@@ -381,8 +383,9 @@ class DebugLogger(CustomLogger):
         if self._active:
             self._debug_logger.error(msg)
 
-# logging setup for special debug logger
+# logging setup for special debug logger and normal logger
 start_threshold_logger = None
+logger = None
 
 class ActivePlug():
     plug: "BatteryPlug"
@@ -492,14 +495,14 @@ class BatteryPlug():
         await self.device.update()
 
     async def reset_emeter_state(self) -> None:
-        logging.info(f'{fn_name()}: {self.name}: today: {str(self.device.emeter_today)} kwH')
+        logger.info(f'{fn_name()}: {self.name}: today: {str(self.device.emeter_today)} kwH')
         self.initial_amp_hours = kw_h_to_amp_hours(self.device.emeter_today, self.config.battery_voltage)
-        logging.info(f"BatteryPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
+        logger.info(f"BatteryPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
         self.total_amp_hours = 0.0
 
     def get_power_total(self) -> float:
         amp_hours = kw_h_to_amp_hours(self.device.emeter_today, self.config.battery_voltage)
-        logging.info(f'{fn_name()}: kw_h: {str(self.device.emeter_today)}, amp_hours: {str(amp_hours)}')
+        logger.info(f'{fn_name()}: kw_h: {str(self.device.emeter_today)}, amp_hours: {str(amp_hours)}')
         if self.initial_amp_hours < 0 or self.initial_amp_hours > amp_hours:
             self.initial_amp_hours = 0
         self.total_amp_hours = amp_hours - self.initial_amp_hours
@@ -513,7 +516,7 @@ class BatteryPlug():
             float: power in watts
         '''
         power: float = self.device.emeter_realtime.power
-        logging.info(f'{fn_name()}: {str(power)}')
+        logger.info(f'{fn_name()}: {str(power)}')
         return power
 
     def is_on(self) -> bool:
@@ -566,7 +569,7 @@ class BatteryPlug():
         Returns:
             bool: True if full charge is complete
         '''
-        # logging.info(f'{self.name} - check_full_charge: battery_charge_mode: {str(self.battery_charge_mode)}, charge_threshold_passed: {str(self.charge_threshold_passed)}')
+        # logger.info(f'{self.name} - check_full_charge: battery_charge_mode: {str(self.battery_charge_mode)}, charge_threshold_passed: {str(self.charge_threshold_passed)}')
         if self.battery_charge_mode == BatteryChargeMode.FULL:
             if self.charge_threshold_passed:
                 self.full_charge_repeat_count = self.full_charge_repeat_count + 1
@@ -574,7 +577,7 @@ class BatteryPlug():
             else:
                 if self.fine_mode_active:
                     self.max_cycles_in_fine_mode = self.max_cycles_in_fine_mode - 1
-                    # logging.info(f'{self.name} - check_full_charge: plug.max_cycles_in_fine_mode: {str(self.max_cycles_in_fine_mode)}')
+                    # logger.info(f'{self.name} - check_full_charge: plug.max_cycles_in_fine_mode: {str(self.max_cycles_in_fine_mode)}')
                     return self.max_cycles_in_fine_mode <= 0
         return self.charge_threshold_passed
 
@@ -582,16 +585,16 @@ class BatteryPlug():
         '''
         returns True if a plug's battery is in storage mode AND it's cycle limit has counted down to 0
         '''
-        # logging.info(f'check_storage_mode: ENTRY: battery_charge_mode: {str(self.battery_charge_mode)}, cycle_limit: {str(self.get_storage_charge_cycle_limit())}')
+        # logger.info(f'check_storage_mode: ENTRY: battery_charge_mode: {str(self.battery_charge_mode)}, cycle_limit: {str(self.get_storage_charge_cycle_limit())}')
         if self.battery_charge_mode == BatteryChargeMode.STORAGE:
-            logging.info(
+            logger.info(
                 f'check_storage_mode: plug.get_storage_charge_cycle_limit(): {str(self.get_storage_charge_cycle_limit())}')
             if self.get_and_decrement_storage_charge_cycle_limit() == 0:
                 self.charge_threshold_passed = True
-                # logging.info(f'check_storage_mode: return True')
+                # logger.info(f'check_storage_mode: return True')
                 return True
             else:
-                # logging.info(f'check_storage_mode: return False')
+                # logger.info(f'check_storage_mode: return False')
                 pass
 
         return False
@@ -675,7 +678,7 @@ class BatteryPlug():
         await self.device.turn_on()
         await self.device.update()
         if not self.device.is_on:
-            logging.error(f"FATAL ERROR, unable to turn on plug: {self.name}")
+            logger.error(f"FATAL ERROR, unable to turn on plug: {self.name}")
             raise BatteryPlugException(
                 f'FATAL ERROR, unable to turn on plug: {self.name}')
 
@@ -683,7 +686,7 @@ class BatteryPlug():
         await self.device.turn_off()
         await self.device.update()
         if not self.device.is_off:
-            logging.error(f"FATAL ERROR, unable to turn off plug: {self.name}")
+            logger.error(f"FATAL ERROR, unable to turn off plug: {self.name}")
             raise BatteryPlugException(
                 f'FATAL ERROR, unable to turn off plug: {self.name}')
 
@@ -702,19 +705,19 @@ class BatteryStripPlug(BatteryPlug):
         self.plug_index = plug_index
 
     async def reset_emeter_state(self) -> None:
-        logging.info(f'BatteryStripPlug.{fn_name()}: {self.name}: ENTRY')
+        logger.info(f'BatteryStripPlug.{fn_name()}: {self.name}: ENTRY')
         child_plug = self.device.children[self.plug_index]
         # await child_plug.erase_emeter_stats()
-        logging.info(f'BatteryStripPlug.{fn_name()}: {self.name}: today: {str(child_plug.emeter_today)} kwH')
+        logger.info(f'BatteryStripPlug.{fn_name()}: {self.name}: today: {str(child_plug.emeter_today)} kwH')
         self.initial_amp_hours = kw_h_to_amp_hours(child_plug.emeter_today, self.config.battery_voltage)
-        logging.info(f"BatteryStripPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
+        logger.info(f"BatteryStripPlug.{fn_name()}: {self.name}: initial_amp_hours: {str(self.initial_amp_hours)}")
         self.total_amp_hours = 0.0
-        logging.info(f'BatteryStripPlug.{fn_name()}: {self.name}: EXIT')
+        logger.info(f'BatteryStripPlug.{fn_name()}: {self.name}: EXIT')
 
     def get_power_total(self) -> float:
         child_plug = self.device.children[self.plug_index]
         amp_hours = kw_h_to_amp_hours(child_plug.emeter_today, self.config.battery_voltage)
-        logging.info(f'{fn_name()}: kw_h: {str(child_plug.emeter_today)}, amp_hours: {str(amp_hours)}')
+        logger.info(f'{fn_name()}: kw_h: {str(child_plug.emeter_today)}, amp_hours: {str(amp_hours)}')
         if self.initial_amp_hours < 0 or self.initial_amp_hours > amp_hours:
             self.initial_amp_hours = 0
         self.total_amp_hours = amp_hours - self.initial_amp_hours
@@ -729,7 +732,7 @@ class BatteryStripPlug(BatteryPlug):
         '''
         child_plug = self.device.children[self.plug_index]
         power: float = child_plug.emeter_realtime.power
-        logging.info(f'BatteryStripPlug.get_power: {str(power)}')
+        logger.info(f'BatteryStripPlug.get_power: {str(power)}')
         return power
 
     def is_on(self) -> bool:
@@ -741,7 +744,7 @@ class BatteryStripPlug(BatteryPlug):
         await child_plug.turn_on()
         await self.update()
         if not child_plug.is_on:
-            logging.error(
+            logger.error(
                 f"FATAL ERROR, unable to turn on plug: {child_plug.name}")
             raise BatteryPlugException(
                 f'FATAL ERROR, unable to turn on plug: {child_plug.name}')
@@ -751,7 +754,7 @@ class BatteryStripPlug(BatteryPlug):
         await child_plug.turn_off()
         await self.update()
         if not child_plug.is_off:
-            logging.error(
+            logger.error(
                 f"FATAL ERROR, unable to turn off plug: {child_plug.name}")
             raise BatteryPlugException(
                 f'FATAL ERROR, unable to turn off plug: {child_plug.name}')
@@ -901,10 +904,10 @@ def create_battery_strip_plug(plug_name: str, smart_device: SmartDevice, index: 
 
 async def update_strip_plug(plug, smart_device, index) -> BatteryStripPlug:
     strip_plug = create_battery_strip_plug(plug.alias, smart_device, index)
-    logging.info(
+    logger.info(
         f'SmartStrip: plug: {plug.alias}, battery_charge_mode: {str(strip_plug.battery_charge_mode)}')
     await strip_plug.update()
-    logging.info(f'SmartStrip: plug: {plug.alias}, update() ok')
+    logger.info(f'SmartStrip: plug: {plug.alias}, update() ok')
     return strip_plug
 
 
@@ -920,19 +923,19 @@ async def update_battery_plug_list(smart_device: SmartDevice, manufacturer_plug_
     '''
     battery_plug_list = BatteryManagerState().battery_plug_list
     if smart_device.is_plug:
-        logging.info(f'init: found a SmartPlug: {smart_device.alias}')
+        logger.info(f'init: found a SmartPlug: {smart_device.alias}')
         if (
             BatteryManagerState().scan_for_battery_prefix and BATTERY_PREFIX in smart_device.alias
         ) or (
             smart_device.alias in manufacturer_plug_names
         ):
             plug = create_battery_plug(smart_device.alias, smart_device)
-            logging.info(
+            logger.info(
                 f'SmartPlug: {smart_device.alias}, battery_charge_mode: {str(plug.battery_charge_mode)}')
             battery_plug_list.append(plug)
             return
     if smart_device.is_strip:
-        logging.info(
+        logger.info(
             f'init: found a SmartStrip: {smart_device.alias}, children: {str(len(smart_device.children))}')
         tasks = []
         for index, plug in enumerate(smart_device.children):
@@ -964,9 +967,9 @@ async def init() -> int:
         await update_battery_plug_list(smart_device, manufacturer_plug_names)
     battery_count = len(battery_plug_list)
     if battery_count == 0:
-        logging.warning(
+        logger.warning(
             f'>>>>> init <<<<< -- EMPTY battery_plug_list + DEBUG -- devices found: {str(found)}')
-        logging.warning(
+        logger.warning(
             f'>>>>> init <<<<< -- If this error persists, please restart the TP-Link power strip or plugs to reset them')
     return battery_count
 
@@ -983,17 +986,17 @@ async def setup() -> None:
         await plug.update()
         await asyncio.sleep(PLUG_SETTLE_TIME_SECS)
         await plug.reset_emeter_state()
-        logging.info('>>>>> setup after reset_emeter_state()')
+        logger.info('>>>>> setup after reset_emeter_state()')
         plug_retry_setup_ct: int = 0
         while plug_retry_setup_ct < PLUG_RETRY_SETUP_LIMIT:
-            logging.info(f'>>>>> setup plug: {plug.name}')
+            logger.info(f'>>>>> setup plug: {plug.name}')
             if not plug.is_on():
                 await plug.turn_on()
                 await asyncio.sleep(5)
                 await plug.update()
                 device_power_consumption = plug.get_power()
                 if device_power_consumption > 0:
-                    logging.info(
+                    logger.info(
                         f'>>>>> setup plug: {plug.name} is using power: {device_power_consumption}')
                     break
                 else:
@@ -1007,11 +1010,11 @@ async def setup() -> None:
                 await plug.update()
                 device_power_consumption = plug.get_power()
                 if device_power_consumption > 0:
-                    logging.info(
+                    logger.info(
                         f'>>>>> setup plug: {plug.name} is using power: {device_power_consumption}')
                     break
                 else:
-                    logging.info(
+                    logger.info(
                         f'>>>>> setup plug: {plug.name} is NOT using power: {device_power_consumption}')
                     plug_retry_setup_ct += 1
                     await plug.turn_off()
@@ -1019,13 +1022,13 @@ async def setup() -> None:
                     await plug.update()
 
         if plug_retry_setup_ct == PLUG_RETRY_SETUP_LIMIT:
-            logging.warning(
+            logger.warning(
                 f'!!!!! WARNING !!!!!, no power usage on plug: {plug.name}')
         else:
-            logging.info(
+            logger.info(
                 f'>>>>> setup -- plug: {plug.name} appears active, retries: {plug_retry_setup_ct}')
 
-    logging.info('>>>>> setup EXIT')
+    logger.info('>>>>> setup EXIT')
 
 
 def delete_plugs(battery_plug_list: list, plugs_to_delete: list) -> None:
@@ -1035,16 +1038,16 @@ def delete_plugs(battery_plug_list: list, plugs_to_delete: list) -> None:
     Args:
         plugs_to_delete (list): plugs that need to be removed from global battery_plug_list
     '''
-    # logging.info(f"delete_plugs number to delete: {len(battery_plug_list)}")
+    # logger.info(f"delete_plugs number to delete: {len(battery_plug_list)}")
     for plug in plugs_to_delete:
         try:
             battery_plug_list.remove(plug)
             stop_active_plug(plug.name)
         except ValueError as e:
-            logging.warning(
+            logger.warning(
                 f'WARNING: plug: {plug.name} is not in battery_plug_list, exception: {str(e)}')
         except Exception as e:
-            logging.warning(
+            logger.warning(
                 f'ERROR: plug: {plug.name} had an unexpected exception: {str(e)}')
 
 
@@ -1078,16 +1081,16 @@ async def analyze() -> bool:
 
     probe_interval_secs = BatteryManagerState().probe_interval_secs
 
-    logging.info(
+    logger.info(
         f'>>>>> analyze --> probe_interval_secs: {str(probe_interval_secs)}, analyze_first_entry: {str(BatteryManagerState().analyze_first_entry)} <<<<<')
     actively_charging = False
 
     def set_actively_charging(plug: BatteryPlug) -> None:
-        # logging.error(
+        # logger.error(
         #     f'!!!! DEBUG: set_actively_charging(): plug: {str(plug.name)}')
         nonlocal actively_charging
         actively_charging = True
-        logging.info(f'{plug.name} is actively_charging')
+        logger.info(f'{plug.name} is actively_charging')
         set_active_plug(plug)
 
     # track next_probe_interval_secs starting at COARSE_PROBE_INTERVAL_SECS to handle the case
@@ -1109,18 +1112,18 @@ async def analyze() -> bool:
         await plug.update()
 
         if not plug.is_on():
-            logging.info(plug_name + ' is OFF')
+            logger.info(plug_name + ' is OFF')
             plugs_to_delete.append(plug)
             continue
 
         # check if plug's time is expired
         if plug.is_time_expired(datetime.now()):
-            logging.info(plug_name + ' time expired')
+            logger.info(plug_name + ' time expired')
             plugs_to_delete.append(plug)
             continue
 
         device_power_consumption = plug.get_power()
-        logging.info(plug_name + ': ' + str(device_power_consumption))
+        logger.info(plug_name + ': ' + str(device_power_consumption))
         if BatteryManagerState().analyze_first_entry:
             start_threshold_logger.info(
                 plug_name + ': ' + str(device_power_consumption))
@@ -1136,7 +1139,7 @@ async def analyze() -> bool:
         if plug.stop_threshold_check(device_power_consumption):
             turn_off_plug = plug.check_full_charge() or plug.check_storage_mode()
             if turn_off_plug:
-                logging.info(
+                logger.info(
                     f'{plug_name}: (stop_threshold_check) has no battery present or it may be fully charged: {str(device_power_consumption)}')
                 await turn_off_and_delete_plug(plug)
                 continue
@@ -1148,14 +1151,14 @@ async def analyze() -> bool:
         # By here check if we should switch to fine_probe_interval to detect charged state sooner
         if not plug.fine_mode_active and next_probe_interval_secs > BatteryManagerState().fine_probe_interval_secs and device_power_consumption < plug.get_coarse_probe_threshold():
             plug.fine_mode_active = True
-            logging.info(
+            logger.info(
                 f'{plug_name}: fine probe interval ({str(fine_probe_interval_secs)}) secs is now ON')
 
         if plug.fine_mode_active:
             next_probe_interval_secs = fine_probe_interval_secs
             # Must handle additional case of trying for full charge cycle, we may NEVER reach the active_charge_power_threshold
             if plug.check_full_charge():
-                logging.info(
+                logger.info(
                     f'{plug_name}: is done with a full charge cycle at: {str(device_power_consumption)}')
                 await turn_off_and_delete_plug(plug)
                 continue
@@ -1166,7 +1169,7 @@ async def analyze() -> bool:
     delete_plugs(battery_plug_list, plugs_to_delete)
 
     if actively_charging and (probe_interval_secs != next_probe_interval_secs):
-        logging.info(
+        logger.info(
             f'Switch to probe_interval_secs: {str(next_probe_interval_secs)} from: {str(probe_interval_secs)}')
         BatteryManagerState().probe_interval_secs = next_probe_interval_secs
     return actively_charging
@@ -1195,24 +1198,24 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
     retry_limit = RETRY_LIMIT
     init_complete = False
     success = False
-    logging.info(f'analyze_loop: START')
+    logger.info(f'analyze_loop: START')
     while not success and retry_limit > 0:
         exception_occurred = False
-        logging.info(f'analyze_loop: LOOP TOP: success: {success}, retry_limit: {retry_limit}')
+        logger.info(f'analyze_loop: LOOP TOP: success: {success}, retry_limit: {retry_limit}')
         # check absolute stop limit
         if datetime.now() > final_stop_time:
-            logging.error(
+            logger.error(
                 f"max runtime {BatteryManagerState().max_hours_to_run} hours exceeded, exit analyze_loop")
             break
         try:
             if not init_complete:
                 battery_plug_ct = await init()
                 if battery_plug_ct == 0:
-                    logging.error("unexpectedly empty battery_plug_list")
+                    logger.error("unexpectedly empty battery_plug_list")
                     raise AnalyzeException('ERROR, unexpectedly empty battery_plug_list')
                 else:
                     init_complete = True
-                    logging.info(
+                    logger.info(
                         f'SUCCESSFULLY found: {str(battery_plug_ct)} smart battery plugs')
 
             await asyncio.sleep(SETTLE_TIME_SECS)
@@ -1226,25 +1229,25 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
             success = True
         except AnalyzeException as e:
             exception_occurred = True
-            logging.error(
+            logger.error(
                 f'!!!!!>>>>> ERROR in Execution e: {str(e)}<<<<<!!!!!')
             if len(battery_plug_list) > 0:
-                logging.error(
+                logger.error(
                     '!!!!!>>>>> ERROR Attempting shutdown_plugs <<<<<!!!!!')
                 await shutdown_plugs()
         except BatteryPlugException as e:
             exception_occurred = True
-            logging.error(
+            logger.error(
                 f'!!!!!>>>>> ERROR ERROR ERROR ERROR BatteryPlugException: {e} <<<<<!!!!!')
         except Exception as e:
             exception_occurred = True
-            logging.error(
+            logger.error(
                 f'!!!!!>>>>> ERROR ERROR ERROR ERROR Unexpected Exception: {e} <<<<<!!!!!')
         finally:
             if exception_occurred:
                 retry_limit = retry_limit - 1
                 traceback_str = traceback.format_exc()
-                logging.error(
+                logger.error(
                     f'!!!!!>>>>> ERROR finally: retry_limit: {retry_limit}, traceback: {traceback_str} <<<<<!!!!!')
                 if retry_limit > 0:
                     await asyncio.sleep(RETRY_DELAY_SECS)
@@ -1258,7 +1261,7 @@ async def shutdown_plugs() -> None:
     Not part of the normal shutdown
     '''
     battery_plug_list = BatteryManagerState().battery_plug_list
-    logging.info(f'>>>>> {fn_name()} ENTRY: battery_plug_list: {len(battery_plug_list)} <<<<<')
+    logger.info(f'>>>>> {fn_name()} ENTRY: battery_plug_list: {len(battery_plug_list)} <<<<<')
     try:
         plugs_to_delete = []
         for plug in battery_plug_list:
@@ -1266,22 +1269,22 @@ async def shutdown_plugs() -> None:
             await plug.turn_off()
             plugs_to_delete.append(plug)
     except BatteryPlugException as e:
-        logging.error(f'FATAL ERROR: {fn_name()}: {str(e)}')
-        logging.error(
+        logger.error(f'FATAL ERROR: {fn_name()}: {str(e)}')
+        logger.error(
             'FATAL ERROR: Unable to shutdown plugs, check plug status manually')
         return
     except Exception as e:
-        logging.error(f'FATAL ERROR: {fn_name()}:Unexpected Exception in shutdown_plugs: {str(e)}')
-        logging.error(
+        logger.error(f'FATAL ERROR: {fn_name()}:Unexpected Exception in shutdown_plugs: {str(e)}')
+        logger.error(
             f'FATAL ERROR: {fn_name()}:Unable to shutdown plugs, check plug status manually')
         return
     finally:      
         delete_plugs(battery_plug_list, plugs_to_delete)
         # We expect battery_plug_list to be empty at this point
         if len(battery_plug_list) > 0:
-            logging.error(f'UNEXPECTED, {fn_name()}:battery_plug_list not empty: {len(battery_plug_list)}')
+            logger.error(f'UNEXPECTED, {fn_name()}:battery_plug_list not empty: {len(battery_plug_list)}')
             battery_plug_list.clear()
-        logging.info(f'>>>>> {fn_name()}: EXIT <<<<<')
+        logger.info(f'>>>>> {fn_name()}: EXIT <<<<<')
 
 
 def get_device_config(plug_name: str) -> DeviceConfig:
@@ -1333,7 +1336,7 @@ def verify_config_file(config_file_name: str) -> bool:
     try:
         verified = True
         if isfile(config_file_name):
-            logging.info(f'>>>>> FOUND config_file: {config_file_name}')
+            logger.custom(f'>>>>> FOUND config_file: {config_file_name}')
             config_parser = configparser.ConfigParser(allow_no_value=True)
             config_parser.read(config_file_name)
             manufacturers = list(config_parser.keys())
@@ -1403,7 +1406,7 @@ def verify_config_file(config_file_name: str) -> bool:
             if CONFIG_PLUGS_SECTION in sections:
                 for plug_name, manufacturer in config_parser[CONFIG_PLUGS_SECTION].items():
                     if not manufacturer in manufacturers:
-                        logging.error(
+                        logger.error(
                             f'>>>>> ERROR in verify_config_file, {manufacturer} not specified')
                         verified = False
                         plug_manufacturer_map[plug_name] = DEFAULT_CONFIG_TAG
@@ -1423,12 +1426,12 @@ def verify_config_file(config_file_name: str) -> bool:
                     set(full_charge_list) - set(plug_storage_list))
                 BatteryManagerState().plug_full_charge_list = plug_full_charge_list
         else:
-            logging.error(
+            logger.error(
                 f'>>>>> ERROR: specified config_file: {config_file_name} does not exist')
             return False
     # Bad form but we want to absolutely return True or False from this function and any exception => False
     except Exception as e:
-        logging.error(
+        logger.error(
             f'FATAL ERROR: Exception in verify_config_file({config_file_name}): {str(e)}')
         config_parser = None
 
@@ -1453,7 +1456,7 @@ def send(from_addr, to_addr, app_key, msg) -> None:
         msg (_type_): _description_
     '''
     try:
-        logging.info(f'[EMAIL] send')
+        logger.info(f'[EMAIL] send')
         smtpobj = smtplib.SMTP('smtp.gmail.com', 587)
         smtpobj.ehlo()
         smtpobj.starttls()
@@ -1461,11 +1464,11 @@ def send(from_addr, to_addr, app_key, msg) -> None:
         smtpobj.login(from_addr, app_key)
         smtpobj.sendmail(from_addr, to_addr, msg.as_string())
         smtpobj.close()
-        logging.info(f'[EMAIL] sent')
+        logger.info(f'[EMAIL] sent')
     except smtplib.SMTPException as e:
-        logging.error(f'MAIL SMTP ERROR: Unable to send mail: {str(e)}')
+        logger.error(f'MAIL SMTP ERROR: Unable to send mail: {str(e)}')
     except Exception as e:
-        logging.error(f'MAIL General ERROR: Unexpected Exception in send: Unable to send mail: {str(e)}')
+        logger.error(f'MAIL General ERROR: Unexpected Exception in send: Unable to send mail: {str(e)}')
 
 
 def send_my_mail(email: str, app_key: str, log_file: str) -> None:
@@ -1473,7 +1476,7 @@ def send_my_mail(email: str, app_key: str, log_file: str) -> None:
         print('Email args missing not sending')
     else:
         try:
-            logging.info(f'[EMAIL] send_my_mail')
+            logger.info(f'[EMAIL] send_my_mail')
             # Create a text/plain message
             with open(log_file, 'r') as f:
                 msg = EmailMessage()
@@ -1499,7 +1502,7 @@ async def test_stuff() -> None:
     Used in lieu of an actual async test layer
     '''
     max_cycles_in_fine_mode: int = BatteryManagerState().max_cycles_in_fine_mode
-    logging.info('test_stuff: ENTRY')
+    logger.info('test_stuff: ENTRY')
     battery_plug_list = []
     test_remove = []
     found = await Discover.discover()
@@ -1509,35 +1512,35 @@ async def test_stuff() -> None:
             if BATTERY_PREFIX in dev.alias:
                 battery_plug = BatteryPlug(
                     dev.alias, dev, max_cycles_in_fine_mode)
-                # logging.info(f'dir: {str(dir(battery_plug))}')
-                logging.info(
+                # logger.info(f'dir: {str(dir(battery_plug))}')
+                logger.info(
                     f'plug: {battery_plug.name}, power: {str(battery_plug.get_power())}')
                 battery_plug_list.append(battery_plug)
         if dev.is_strip:
-            logging.info(f'test_stuff: dev.children: {len(dev.children)}')
+            logger.info(f'test_stuff: dev.children: {len(dev.children)}')
             index = 0
             for child_plug in dev.children:
                 if BATTERY_PREFIX in child_plug.alias:
                     battery_plug = BatteryStripPlug(
                         child_plug.alias, dev, index, max_cycles_in_fine_mode)
-                    # logging.info(f'child_plug:dir: {str(dir(battery_plug))}')
-                    # logging.info(f'child_plug: {battery_plug.get_name()}, power: {str(battery_plug.get_power())}')
-                    logging.info(
+                    # logger.info(f'child_plug:dir: {str(dir(battery_plug))}')
+                    # logger.info(f'child_plug: {battery_plug.get_name()}, power: {str(battery_plug.get_power())}')
+                    logger.info(
                         f'child_plug: {battery_plug.name}, power: {str(battery_plug.get_power())}')
                     battery_plug_list.append(battery_plug)
                     if len(test_remove) < 3:
                         test_remove.append(battery_plug)
                 index = index + 1
-    logging.info(
+    logger.info(
         f'test_stuff: battery_plug_list: len: {len(battery_plug_list), {str(battery_plug_list)}}')
     # for item in test_remove:
     #     battery_plug_list.remove(item)
-    # logging.info(f'test_stuff: after remove: battery_plug_list: len: {len(battery_plug_list), {str(battery_plug_list)}}')
+    # logger.info(f'test_stuff: after remove: battery_plug_list: len: {len(battery_plug_list), {str(battery_plug_list)}}')
     for item in battery_plug_list:
         await item.turn_off()
-        logging.info(
+        logger.info(
             f'iterate: name: {item.name} on: {str(item.is_on())}, power: {str(item.get_power())}')
-        logging.info(
+        logger.info(
             f'iterate: name: {item.name} on: {str(item.is_on())}, power: {str(item.get_power())}')
 
 
@@ -1551,10 +1554,11 @@ def stop_quiet_mode() -> None:
 
 
 def force_log(log: str) -> None:
-    log_level = logging.getLogger("").getEffectiveLevel()
-    logging.getLogger("").setLevel(logging.INFO)
-    logging.info(log)
-    logging.getLogger("").setLevel(log_level)
+    logger.custom(log)
+    # log_level = logging.getLogger("").getEffectiveLevel()
+    # logging.getLogger("").setLevel(logging.INFO)
+    # logging.info(log)
+    # logging.getLogger("").setLevel(log_level)
 
 
 def log_start_state(max_hours_to_run: int,
@@ -1563,68 +1567,68 @@ def log_start_state(max_hours_to_run: int,
                            test_mode: bool,
                            config_file_is_valid: bool
                            ) -> None:
-    logging.info('>>>>> START <<<<<')
+    logger.custom('>>>>> START <<<<<')
     if BatteryManagerState().logging_mode == LoggingMode.SUPER_QUIET:
         # Even in SUPER_QUIET, forcing a full charge is important to know
         if BatteryManagerState().force_full_charge:
-            logging.info(f'  ---- force_full_charge: True')
+            logger.info(f'  ---- force_full_charge: True')
         return
     device_config = BatteryManagerState().device_config
     default_config: DeviceConfig = BatteryManagerState().default_config
 
     if test_mode:
-        logging.info(f'  ---- test_mode: {str(test_mode)}')
-    logging.info(f'  ---- quiet_mode: {str(BatteryManagerState().quiet_mode)}')
+        logger.info(f'  ---- test_mode: {str(test_mode)}')
+    logger.info(f'  ---- quiet_mode: {str(BatteryManagerState().quiet_mode)}')
     if BatteryManagerState().force_full_charge:
-        logging.info(f'  ---- force_full_charge: {str(BatteryManagerState().force_full_charge)}')
-        logging.info(
+        logger.info(f'  ---- force_full_charge: {str(BatteryManagerState().force_full_charge)}')
+        logger.info(
             f'  ---- full_charge_repeat_limit: {str(BatteryManagerState().full_charge_repeat_limit)}')
-    logging.info(
+    logger.info(
         f'  ---- max_cycles_in_fine_mode: {str(BatteryManagerState().max_cycles_in_fine_mode)}')
-    logging.info(f'  ---- max_hours_to_run: {str(max_hours_to_run)}')
-    logging.info(f'  ---- logfile: {str(log_file)}')
-    logging.info(f'  ---- config_file: {str(config_file)}')
-    logging.info(f'  ---- DEFAULT config')
-    logging.info(
+    logger.info(f'  ---- max_hours_to_run: {str(max_hours_to_run)}')
+    logger.info(f'  ---- logfile: {str(log_file)}')
+    logger.info(f'  ---- config_file: {str(config_file)}')
+    logger.info(f'  ---- DEFAULT config')
+    logger.info(
         f'  -------- nominal_charge_start_power_threshold: {str(default_config.nominal_charge_start_power_threshold)}')
-    logging.info(
+    logger.info(
         f'  -------- nominal_charge_stop_power_threshold: {str(default_config.nominal_charge_stop_power_threshold)}')
-    logging.info(
+    logger.info(
         f'  -------- full_charge_power_threshold: {str(default_config.full_charge_power_threshold)}')
-    logging.info(
+    logger.info(
         f'  -------- storage_charge_start_power_threshold: {str(default_config.storage_charge_start_power_threshold)}')
-    logging.info(
+    logger.info(
         f'  -------- storage_charge_stop_power_threshold: {str(default_config.storage_charge_stop_power_threshold)}')
-    logging.info(
+    logger.info(
         f'  -------- storage_charge_cycle_limit: {str(BatteryManagerState().storage_charge_cycle_limit)}')
-    logging.info(
+    logger.info(
         f'  -------- scan_for_battery_prefix: {BatteryManagerState().scan_for_battery_prefix}'
     )
     if config_file_is_valid:
-        logging.info(f'  ---- MANUFACTURER specific thresholds')
+        logger.info(f'  ---- MANUFACTURER specific thresholds')
         for manufacturer in device_config:
             if manufacturer == "DEFAULT":
                 continue
-            logging.info(f'  ---- manufacturer: {str(manufacturer)}')
-            logging.info(
+            logger.info(f'  ---- manufacturer: {str(manufacturer)}')
+            logger.info(
                 f'  -------- nominal_charge_start_power_threshold: {str(device_config[manufacturer].nominal_charge_start_power_threshold)}')
-            logging.info(
+            logger.info(
                 f'  -------- nominal_charge_stop_power_threshold: {str(device_config[manufacturer].nominal_charge_stop_power_threshold)}')
-            logging.info(
+            logger.info(
                 f'  -------- full_charge_power_threshold: {str(device_config[manufacturer].full_charge_power_threshold)}')
-            logging.info(
+            logger.info(
                 f'  -------- storage_charge_start_power_threshold: {str(device_config[manufacturer].storage_charge_start_power_threshold)}')
-            logging.info(
+            logger.info(
                 f'  -------- storage_charge_stop_power_threshold: {str(device_config[manufacturer].storage_charge_stop_power_threshold)}')
-            logging.info(
+            logger.info(
                 f'  -------- storage_charge_cycle_limit: {str(device_config[manufacturer].storage_charge_cycle_limit)}')
-            logging.info(
+            logger.info(
                 f'  -------- charger_amp_hour_rate: {str(device_config[manufacturer].charger_amp_hour_rate) if device_config[manufacturer].charger_amp_hour_rate > 0.0 else "N/A"}')
-            logging.info(
+            logger.info(
                 f'  -------- battery_amp_hour_capacity: {str(device_config[manufacturer].battery_amp_hour_capacity) if device_config[manufacturer].battery_amp_hour_capacity > 0.0 else "N/A"}')
-            logging.info(
+            logger.info(
                 f'  -------- charger_max_hours_to_run: {str(device_config[manufacturer].charger_max_hours_to_run)}')
-            logging.info(
+            logger.info(
                 f'  -------- battery_voltage: {str(device_config[manufacturer].battery_voltage)}')
 
 
@@ -1665,7 +1669,7 @@ def run_battery_controller(max_hours_to_run: int,
     plug_storage_list = BatteryManagerState().plug_storage_list
     active_plugs: Set[ActivePlug] = BatteryManagerState().active_plugs
 
-    logging.info(f'Script logs are in {log_file}')
+    logger.custom(f'Script logs are in {log_file}')
     start = datetime.now()
 
     config_file_is_valid = False
@@ -1681,13 +1685,13 @@ def run_battery_controller(max_hours_to_run: int,
                     config_file_is_valid=config_file_is_valid)
     start_quiet_mode()
     if len(plug_storage_list) > 0:
-        logging.info(f'  ---- plugs in storage mode: ')
+        logger.info(f'  ---- plugs in storage mode: ')
         for plug_name in plug_storage_list:
-            logging.info(f'      ---- plug name: {plug_name}')
+            logger.info(f'      ---- plug name: {plug_name}')
     if len(plug_full_charge_list) > 0:
-        logging.info(f'  ---- plugs in full charge mode: ')
+        logger.info(f'  ---- plugs in full charge mode: ')
         for plug_name in plug_full_charge_list:
-            logging.info(f'      ---- plug name: {plug_name}')
+            logger.info(f'      ---- plug name: {plug_name}')
 
     if test_mode:
         # asyncio.run(test_stuff())
@@ -1698,9 +1702,9 @@ def run_battery_controller(max_hours_to_run: int,
     stop = datetime.now()
     elapsed_time = stop - start
     stop_quiet_mode()
-    logging.info(f'>>>>> !!!! FINI: success: {str(success)} !!!! <<<<<')
+    logger.custom(f'>>>>> !!!! FINI: success: {str(success)} !!!! <<<<<')
     if len(active_plugs) > 0:
-        logging.info(f'The following plugs were actively charging this run:')
+        logger.info(f'The following plugs were actively charging this run:')
         start_threshold_logger.info(
             f'The following plugs were actively charging this run:')
         plug: ActivePlug
@@ -1709,18 +1713,18 @@ def run_battery_controller(max_hours_to_run: int,
                 plug_elapsed_charge_time = plug.stop_time - plug.start_time
                 plug_name = plug.plug.name
                 total_amp_hours = plug.plug.total_amp_hours
-                logging.info(
+                logger.info(
                     f'    {plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]} added ~{total_amp_hours:.2f} Ah')
                 start_threshold_logger.info(
                     f'    {plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]} added ~{total_amp_hours:.2f} Ah')
             else:
-                logging.info(
+                logger.info(
                     f'    {plug.plug_name}, charged for unknown duration')
                 start_threshold_logger.info(
                     f'    {plug.plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]}')
     else:
-        logging.info(f'No plugs were actively charging this run')
-    logging.info(f'==> Elapsed time: {str(elapsed_time).split(".", 2)[0]}')
+        logger.info(f'No plugs were actively charging this run')
+    logger.info(f'==> Elapsed time: {str(elapsed_time).split(".", 2)[0]}')
 
     send_my_mail(email, app_key, log_file)
 
@@ -1748,6 +1752,49 @@ def setup_logging_handlers(log_file: str) -> list:
     return logging_handlers
 
 
+# Define formats
+default_format = "%(asctime)s %(levelname)s: %(message)s"
+info_format = "%(message)s"
+custom_format = "%(asctime)s CUSTOM: %(message)s"
+
+
+def custom(self, message, *args, **kws):
+    if self.isEnabledFor(CUSTOM_LEVEL_NUM):
+        self._log(CUSTOM_LEVEL_NUM, message, args, **kws)
+
+
+class CustomFormatter(logging.Formatter):
+    def __init__(self, fmt=None, datefmt=None, info_fmt=None, custom_fmt=None, *args, **kwargs):
+        super().__init__(fmt, datefmt, *args, **kwargs)
+        self.default_fmt = fmt
+        self.info_fmt = info_fmt
+        self.custom_fmt = custom_fmt
+
+    def format(self, record):
+        # Use different format for INFO level
+        if record.levelno == logging.INFO:
+            self._style._fmt = self.info_fmt
+        # Use different format for CUSTOM level
+        elif record.levelno == CUSTOM_LEVEL_NUM:
+            self._style._fmt = self.custom_fmt
+            record.levelname = CUSTOM_LEVEL_NAME  # Ensure the custom level name is used
+        else:
+            self._style._fmt = self.default_fmt
+        return super().format(record)
+
+
+def init_logging() -> logging.Logger:
+    logging.addLevelName(CUSTOM_LEVEL_NUM, CUSTOM_LEVEL_NAME)
+    logging.Logger.custom = custom
+    logger = logging.getLogger('')
+    logger.setLevel(logging.INFO)
+    formatter = CustomFormatter(fmt=default_format, info_fmt=info_format, custom_fmt=custom_format, datefmt="%Y-%m-%d %H:%M:%S")
+    logging_handlers = setup_logging_handlers(BatteryManagerState().log_file)
+    for handler in logging_handlers:
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    return logger
+
 def exit_handler():
     """
     This function is registered with atexit to handle graceful shutdown of async tasks.
@@ -1755,104 +1802,104 @@ def exit_handler():
     coroutine within that loop. If the loop is not running, it creates a new event loop
     to run the shutdown_plugs coroutine.
     """
-    logging.info("Executing exit_handler")
+    logger.info("Executing exit_handler")
 
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            logging.info("Running shutdown_plugs within the current event loop")
+            logger.info("Running shutdown_plugs within the current event loop")
             loop.create_task(shutdown_plugs())
         else:
-            logging.info("Running shutdown_plugs in the existing event loop")
+            logger.info("Running shutdown_plugs in the existing event loop")
             loop.run_until_complete(shutdown_plugs())
     except RuntimeError as e:
-        logging.error(f"Failed to get event loop: {e}")
+        logger.error(f"Failed to get event loop: {e}")
         # Create a new event loop if the current one is not available
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        logging.info("Running shutdown_plugs in a new event loop")
+        logger.info("Running shutdown_plugs in a new event loop")
         loop.run_until_complete(shutdown_plugs())
         loop.close()
 
-    logging.info("Event loop closed")
+    logger.info("Event loop closed")
 
 def process_overrides(args) -> None:
     if args.scan_for_battery_prefix != None:
         try:
             scan_for_battery_prefix = bool(
                 args.scan_for_battery_prefix)
-            logging.info(
+            logger.info(
                 f'>>>>> OVERRIDE scan_for_battery_prefix: {str(scan_for_battery_prefix)}')
         except (ValueError, TypeError, OverflowError) as e:
-            logging.error(f'ERROR, Invalid scan_for_battery_prefix: {str(e)}')
+            logger.error(f'ERROR, Invalid scan_for_battery_prefix: {str(e)}')
     if args.nominal_start_charge_threshold != None:
         try:
             nominal_charge_start_power_threshold = float(
                 args.nominal_start_charge_threshold)
-            logging.info(
+            logger.custom(
                 f'>>>>> OVERRIDE nominal_charge_start_power_threshold: {str(nominal_charge_start_power_threshold)}')
         except (ValueError, TypeError, OverflowError) as e:
-            logging.error(f'ERROR, Invalid nominal_charge_start_charge_threshold: {str(e)}')
+            logger.error(f'ERROR, Invalid nominal_charge_start_charge_threshold: {str(e)}')
     if args.nominal_charge_cutoff != None:
         try:
             nominal_charge_stop_power_threshold = float(
                 args.nominal_charge_cutoff)
-            logging.info(
+            logger.custom(
                 f'>>>>> OVERRIDE nominal_charge_stop_power_threshold: {str(nominal_charge_stop_power_threshold)}')
         except (ValueError, TypeError, OverflowError) as e:
-            logging.error(f'ERROR, Invalid nominal_charge_stop_power_threshold: {str(e)}')
+            logger.error(f'ERROR, Invalid nominal_charge_stop_power_threshold: {str(e)}')
     if args.full_charge_cutoff != None:
         try:
             full_charge_power_threshold = float(
                 args.full_charge_cutoff)
-            logging.info(
+            logger.custom(
                 f'>>>>> OVERRIDE full_charge_power_threshold: {str(full_charge_power_threshold)}')
         except (ValueError, TypeError, OverflowError) as e:
-            logging.error(f'ERROR, Invalid full_charge_power_threshold: {str(e)}')
+            logger.error(f'ERROR, Invalid full_charge_power_threshold: {str(e)}')
     if args.storage_start_charge_threshold != None:
         try:
             storage_charge_start_power_threshold = float(
                 args.storage_start_charge_threshold)
-            logging.info(
+            logger.custom(
                 f'>>>>> OVERRIDE storage_charge_start_power_threshold: {str(storage_charge_start_power_threshold)}')
         except (ValueError, TypeError, OverflowError) as e:
-            logging.error(f'ERROR, Invalid storage_charge_start_power_threshold: {str(e)}')
+            logger.error(f'ERROR, Invalid storage_charge_start_power_threshold: {str(e)}')
     if args.storage_charge_cutoff != None:
         try:
             storage_charge_stop_power_threshold = float(
                 args.storage_charge_cutoff)
-            logging.info(
+            logger.custom(
                 f'>>>>> OVERRIDE storage_charge_stop_power_threshold: {str(storage_charge_stop_power_threshold)}')
         except (ValueError, TypeError, OverflowError) as e:
-            logging.error(f'ERROR, Invalid storage_charge_stop_power_threshold: {str(e)}')
+            logger.error(f'ERROR, Invalid storage_charge_stop_power_threshold: {str(e)}')
     if args.full_charge_repeat_limit != None:
         try:
             BatteryManagerState().full_charge_repeat_limit = args.full_charge_repeat_limit
-            logging.info(
+            logger.custom(
                 f'>>>>> OVERRIDE full_charge_repeat_limit: {str(BatteryManagerState().full_charge_repeat_limit)}')
         except (ValueError, TypeError, OverflowError) as e:
-            logging.error(f'ERROR, Invalid full_charge_repeat_limit: {str(e)}')
+            logger.error(f'ERROR, Invalid full_charge_repeat_limit: {str(e)}')
     if args.max_cycles_in_fine_mode != None:
         try:
             BatteryManagerState().max_cycles_in_fine_mode = args.max_cycles_in_fine_mode
-            logging.info(
+            logger.custom(
                 f'>>>>> OVERRIDE max_cycles_in_fine_mode: {str(BatteryManagerState().max_cycles_in_fine_mode)}')
         except (ValueError, TypeError, OverflowError) as e:
-            logging.error(f'ERROR, Invalid max_cycles_in_fine_mode: {str(e)}')
+            logger.error(f'ERROR, Invalid max_cycles_in_fine_mode: {str(e)}')
     if args.storage_charge_cycle_limit != None:
         try:
             BatteryManagerState().storage_charge_cycle_limit = args.storage_charge_cycle_limit
-            logging.info(
+            logger.custom(
                 f'>>>>> OVERRIDE storage_charge_cycle_limit: {str(BatteryManagerState().storage_charge_cycle_limit)}')
         except (ValueError, TypeError, OverflowError) as e:
-            logging.error(f'ERROR, Invalid storage_charge_cycle_limit: {str(e)}')
+            logger.error(f'ERROR, Invalid storage_charge_cycle_limit: {str(e)}')
     if args.max_hours_to_run != None:
         try:
             BatteryManagerState().max_hours_to_run = args.max_hours_to_run
-            logging.info(
+            logger.custom(
                 f'>>>>> OVERRIDE max_hours_to_run: {str(BatteryManagerState().max_hours_to_run)}')
         except (ValueError, TypeError, OverflowError) as e:
-            logging.error(f'ERROR, Invalid max_hours_to_run {str(BatteryManagerState().max_hours_to_run)}, exception: {str(e)}')
+            logger.error(f'ERROR, Invalid max_hours_to_run {str(BatteryManagerState().max_hours_to_run)}, exception: {str(e)}')
     BatteryManagerState().quiet_mode = args.quiet_mode
     if args.quiet_mode:
         BatteryManagerState().logging_mode = LoggingMode.SUPER_QUIET
@@ -1861,7 +1908,7 @@ def process_overrides(args) -> None:
 
     
 def main() -> None:
-    global start_threshold_logger
+    global start_threshold_logger, logger
 
     # nominal_charge_start_power_threshold = NOMINAL_CHARGE_START_THRESHOLD_DEFAULT
     # nominal_charge_stop_power_threshold = NOMINAL_CHARGE_STOP_THRESHOLD_DEFAULT
@@ -1880,13 +1927,17 @@ def main() -> None:
     if args.log_file_name != None:
         BatteryManagerState().log_file = args.log_file_name
 
-    logging_handlers = setup_logging_handlers(BatteryManagerState().log_file)
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        datefmt='%Y-%m-%d %H:%M:%S',
-        handlers=logging_handlers
-    )
+    logger = init_logging()
+    # logging_handlers = setup_logging_handlers(BatteryManagerState().log_file)
+    # logging.basicConfig(
+    #     level=logging.INFO,
+    #     format="%(asctime)s [%(levelname)s] %(message)s",
+    #     datefmt='%Y-%m-%d %H:%M:%S',
+    #     handlers=logging_handlers
+    # )
+    # logger.info(f"Test Info")
+    # logger.custom(f"Test custom")
+    # logger.debug(f"Test debug")
 
     BatteryManagerState().force_full_charge = args.force_full_charge
 

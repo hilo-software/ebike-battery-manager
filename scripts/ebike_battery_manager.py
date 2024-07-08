@@ -1336,7 +1336,7 @@ def verify_config_file(config_file_name: str) -> bool:
     try:
         verified = True
         if isfile(config_file_name):
-            logger.custom(f'>>>>> FOUND config_file: {config_file_name}')
+            logger.info(f'>>>>> FOUND config_file: {config_file_name}')
             config_parser = configparser.ConfigParser(allow_no_value=True)
             config_parser.read(config_file_name)
             manufacturers = list(config_parser.keys())
@@ -1567,7 +1567,6 @@ def log_start_state(max_hours_to_run: int,
                            test_mode: bool,
                            config_file_is_valid: bool
                            ) -> None:
-    logger.custom('>>>>> START <<<<<')
     if BatteryManagerState().logging_mode == LoggingMode.SUPER_QUIET:
         # Even in SUPER_QUIET, forcing a full charge is important to know
         if BatteryManagerState().force_full_charge:
@@ -1669,7 +1668,7 @@ def run_battery_controller(max_hours_to_run: int,
     plug_storage_list = BatteryManagerState().plug_storage_list
     active_plugs: Set[ActivePlug] = BatteryManagerState().active_plugs
 
-    logger.custom(f'Script logs are in {log_file}')
+    logger.info(f'Script logs are in {log_file}')
     start = datetime.now()
 
     config_file_is_valid = False
@@ -1836,7 +1835,7 @@ def process_overrides(args) -> None:
         try:
             nominal_charge_start_power_threshold = float(
                 args.nominal_start_charge_threshold)
-            logger.custom(
+            logger.info(
                 f'>>>>> OVERRIDE nominal_charge_start_power_threshold: {str(nominal_charge_start_power_threshold)}')
         except (ValueError, TypeError, OverflowError) as e:
             logger.error(f'ERROR, Invalid nominal_charge_start_charge_threshold: {str(e)}')
@@ -1844,7 +1843,7 @@ def process_overrides(args) -> None:
         try:
             nominal_charge_stop_power_threshold = float(
                 args.nominal_charge_cutoff)
-            logger.custom(
+            logger.info(
                 f'>>>>> OVERRIDE nominal_charge_stop_power_threshold: {str(nominal_charge_stop_power_threshold)}')
         except (ValueError, TypeError, OverflowError) as e:
             logger.error(f'ERROR, Invalid nominal_charge_stop_power_threshold: {str(e)}')
@@ -1852,7 +1851,7 @@ def process_overrides(args) -> None:
         try:
             full_charge_power_threshold = float(
                 args.full_charge_cutoff)
-            logger.custom(
+            logger.info(
                 f'>>>>> OVERRIDE full_charge_power_threshold: {str(full_charge_power_threshold)}')
         except (ValueError, TypeError, OverflowError) as e:
             logger.error(f'ERROR, Invalid full_charge_power_threshold: {str(e)}')
@@ -1860,7 +1859,7 @@ def process_overrides(args) -> None:
         try:
             storage_charge_start_power_threshold = float(
                 args.storage_start_charge_threshold)
-            logger.custom(
+            logger.info(
                 f'>>>>> OVERRIDE storage_charge_start_power_threshold: {str(storage_charge_start_power_threshold)}')
         except (ValueError, TypeError, OverflowError) as e:
             logger.error(f'ERROR, Invalid storage_charge_start_power_threshold: {str(e)}')
@@ -1868,35 +1867,35 @@ def process_overrides(args) -> None:
         try:
             storage_charge_stop_power_threshold = float(
                 args.storage_charge_cutoff)
-            logger.custom(
+            logger.info(
                 f'>>>>> OVERRIDE storage_charge_stop_power_threshold: {str(storage_charge_stop_power_threshold)}')
         except (ValueError, TypeError, OverflowError) as e:
             logger.error(f'ERROR, Invalid storage_charge_stop_power_threshold: {str(e)}')
     if args.full_charge_repeat_limit != None:
         try:
             BatteryManagerState().full_charge_repeat_limit = args.full_charge_repeat_limit
-            logger.custom(
+            logger.info(
                 f'>>>>> OVERRIDE full_charge_repeat_limit: {str(BatteryManagerState().full_charge_repeat_limit)}')
         except (ValueError, TypeError, OverflowError) as e:
             logger.error(f'ERROR, Invalid full_charge_repeat_limit: {str(e)}')
     if args.max_cycles_in_fine_mode != None:
         try:
             BatteryManagerState().max_cycles_in_fine_mode = args.max_cycles_in_fine_mode
-            logger.custom(
+            logger.info(
                 f'>>>>> OVERRIDE max_cycles_in_fine_mode: {str(BatteryManagerState().max_cycles_in_fine_mode)}')
         except (ValueError, TypeError, OverflowError) as e:
             logger.error(f'ERROR, Invalid max_cycles_in_fine_mode: {str(e)}')
     if args.storage_charge_cycle_limit != None:
         try:
             BatteryManagerState().storage_charge_cycle_limit = args.storage_charge_cycle_limit
-            logger.custom(
+            logger.info(
                 f'>>>>> OVERRIDE storage_charge_cycle_limit: {str(BatteryManagerState().storage_charge_cycle_limit)}')
         except (ValueError, TypeError, OverflowError) as e:
             logger.error(f'ERROR, Invalid storage_charge_cycle_limit: {str(e)}')
     if args.max_hours_to_run != None:
         try:
             BatteryManagerState().max_hours_to_run = args.max_hours_to_run
-            logger.custom(
+            logger.info(
                 f'>>>>> OVERRIDE max_hours_to_run: {str(BatteryManagerState().max_hours_to_run)}')
         except (ValueError, TypeError, OverflowError) as e:
             logger.error(f'ERROR, Invalid max_hours_to_run {str(BatteryManagerState().max_hours_to_run)}, exception: {str(e)}')
@@ -1939,6 +1938,7 @@ def main() -> None:
     # logger.custom(f"Test custom")
     # logger.debug(f"Test debug")
 
+    logger.custom('>>>>> START <<<<<')
     BatteryManagerState().force_full_charge = args.force_full_charge
 
     process_overrides(args)

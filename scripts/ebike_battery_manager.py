@@ -1823,7 +1823,7 @@ def exit_handler():
     logger.info("Event loop closed")
 
 def process_overrides(args) -> None:
-    if args.scan_for_battery_prefix != None:
+    if args.scan_for_battery_prefix != None and args.scan_for_battery_prefix == True:
         try:
             scan_for_battery_prefix = bool(
                 args.scan_for_battery_prefix)

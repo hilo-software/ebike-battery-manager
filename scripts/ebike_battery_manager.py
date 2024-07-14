@@ -18,6 +18,7 @@ import atexit
 import signal
 import sys
 import inspect
+import bisect
 
 # Constants
 CLOSE_MISS_PCT = 0.05
@@ -30,6 +31,7 @@ COARSE_PROBE_INTERVAL_SECS = 10 * 60
 FINE_PROBE_INTERVAL_SECS = 5 * 60
 COARSE_PROBE_THRESHOLD_MARGIN = 20.0
 MAX_CYCLES_IN_FINE_MODE = 20
+MINIMUM_AMP_THRESHOLD_FOR_ACTIVE_CHARGE = 0.03
 CONFIG_PLUGS_SECTION = 'Plugs'
 CONFIG_STORAGE_SECTION = 'Storage'
 CONFIG_FULL_CHARGE_SECTION = 'FullCharge'
@@ -1631,6 +1633,46 @@ def log_start_state(max_hours_to_run: int,
                 f'  -------- battery_voltage: {str(device_config[manufacturer].battery_voltage)}')
 
 
+def log_actively_charging_plugs(active_plugs: Set[ActivePlug]) -> None:
+    if len(active_plugs) > 0:
+        def get_total_amp_hours(plug: ActivePlug) -> float:
+            return plug.plug.get_power_total()
+        
+        def insert_sorted(sorted_list, item, key) -> None:
+            key_value = key(item)
+            bisect.insort(sorted_active_plugs, (key_value, item))
+
+        sorted_active_plugs = []
+        for plug in active_plugs:
+            if plug.plug.total_amp_hours > MINIMUM_AMP_THRESHOLD_FOR_ACTIVE_CHARGE:
+                insert_sorted(sorted_active_plugs, plug, get_total_amp_hours)
+
+        if len(sorted_active_plugs) == 0:
+            logger.info(f'No plugs were actively charging this run')
+            return
+
+        logger.info(f'The following plugs were actively charging this run:')
+        start_threshold_logger.info(
+            f'The following plugs were actively charging this run:')
+        
+        for _, plug in sorted_active_plugs:
+            if plug.start_time and plug.stop_time:
+                plug_elapsed_charge_time = plug.stop_time - plug.start_time
+                plug_name = plug.plug.name
+                total_amp_hours = plug.plug.total_amp_hours
+                logger.info(
+                    f'    {plug_name}, charged for {str(timedelta(seconds=plug_elapsed_charge_time)).split(".", 2)[0]} added ~{total_amp_hours:.2f} Ah')
+                start_threshold_logger.info(
+                    f'    {plug_name}, charged for {str(timedelta(seconds=plug_elapsed_charge_time)).split(".", 2)[0]} added ~{total_amp_hours:.2f} Ah')
+            else:
+                logger.info(
+                    f'    {plug.plug_name}, charged for unknown duration')
+                start_threshold_logger.info(
+                    f'    {plug.plug_name}, charged for unknown duration')
+    else:
+        logger.info(f'No plugs were actively charging this run')
+
+
 def run_battery_controller(max_hours_to_run: int,
                            log_file: str,
                            config_file: str,
@@ -1702,27 +1744,7 @@ def run_battery_controller(max_hours_to_run: int,
     elapsed_time = stop - start
     stop_quiet_mode()
     logger.custom(f'>>>>> !!!! FINI: success: {str(success)} !!!! <<<<<')
-    if len(active_plugs) > 0:
-        logger.info(f'The following plugs were actively charging this run:')
-        start_threshold_logger.info(
-            f'The following plugs were actively charging this run:')
-        plug: ActivePlug
-        for plug in active_plugs:
-            if plug.start_time and plug.stop_time:
-                plug_elapsed_charge_time = plug.stop_time - plug.start_time
-                plug_name = plug.plug.name
-                total_amp_hours = plug.plug.total_amp_hours
-                logger.info(
-                    f'    {plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]} added ~{total_amp_hours:.2f} Ah')
-                start_threshold_logger.info(
-                    f'    {plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]} added ~{total_amp_hours:.2f} Ah')
-            else:
-                logger.info(
-                    f'    {plug.plug_name}, charged for unknown duration')
-                start_threshold_logger.info(
-                    f'    {plug.plug_name}, charged for {str(plug_elapsed_charge_time).split(".", 2)[0]}')
-    else:
-        logger.info(f'No plugs were actively charging this run')
+    log_actively_charging_plugs(active_plugs=active_plugs)
     logger.info(f'==> Elapsed time: {str(elapsed_time).split(".", 2)[0]}')
 
     send_my_mail(email, app_key, log_file)

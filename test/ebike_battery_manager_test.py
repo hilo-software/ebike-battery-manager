@@ -7,6 +7,7 @@ from kasa import SmartDevice
 from unittest.mock import MagicMock, patch, AsyncMock
 from datetime import datetime, timedelta
 from math import ceil
+from typing import Set
 import time
 import configparser
 
@@ -26,6 +27,9 @@ RAD_MANUFACTURER_NAME = 'Rad'
 
 target = __import__("scripts.ebike_battery_manager")
 target = target.ebike_battery_manager
+ActivePlug = target.ActivePlug
+logger = target.logger
+start_threshold_logger = target.start_threshold_logger
 battery_plug_list = target.BatteryManagerState().battery_plug_list
 DeviceConfig = target.DeviceConfig
 BatteryPlug = target.BatteryPlug
@@ -61,6 +65,17 @@ lectric_config: DeviceConfig = DeviceConfig('Lectric',
                                                  LECTRIC_CHARGER_AMP_HOUR_RATE),
                                             target.DEFAULT_BATTERY_VOLTAGE
                                             )
+
+
+@pytest.fixture
+def mock_logger():
+    with patch('scripts.ebike_battery_manager.logger') as mock_logger:
+        yield mock_logger
+
+@pytest.fixture
+def mock_start_threshold_logger():
+    with patch('scripts.ebike_battery_manager.start_threshold_logger') as mock_start_threshold_logger:
+        yield mock_start_threshold_logger
 
 @pytest.fixture(scope="session", autouse=True)
 def execute_before_any_test():
@@ -875,6 +890,72 @@ def test_setup_logging_handlers_with_invalid_file():
 def test_setup_logging_handlers_with_blank_file_name():
     logging_handlers = target.setup_logging_handlers('')
     assert len(logging_handlers) == 1
+
+def test_no_active_plugs(mock_logger, mock_start_threshold_logger):
+    with patch('scripts.ebike_battery_manager.logger', mock_logger):
+        with patch('scripts.ebike_battery_manager.start_threshold_logger', mock_start_threshold_logger):
+            target.log_actively_charging_plugs(set())
+            mock_logger.info.assert_called_once_with('No plugs were actively charging this run')
+            mock_start_threshold_logger.info.assert_not_called()
+
+def test_active_plugs(mock_logger, mock_start_threshold_logger):
+    plug1 = MagicMock()
+    plug2 = MagicMock()
+
+    plug1.plug.get_power_total.return_value = 5.0
+    plug1.plug.total_amp_hours = 5.0
+    plug1.plug.name = 'Plug1'
+    plug1.start_time = 10
+    plug1.stop_time = 20
+
+    plug2.plug.get_power_total.return_value = 3.0
+    plug2.plug.total_amp_hours = 3.0
+    plug2.plug.name = 'Plug2'
+    plug2.start_time = 15
+    plug2.stop_time = 25
+
+    active_plugs: Set[ActivePlug] = {plug1, plug2}
+
+    with patch('scripts.ebike_battery_manager.logger', mock_logger):
+        with patch('scripts.ebike_battery_manager.start_threshold_logger', mock_start_threshold_logger):
+            with patch('scripts.ebike_battery_manager.MINIMUM_AMP_THRESHOLD_FOR_ACTIVE_CHARGE', 1):
+                target.log_actively_charging_plugs(active_plugs)
+
+                mock_logger.info.assert_any_call('The following plugs were actively charging this run:')
+                mock_start_threshold_logger.info.assert_any_call('The following plugs were actively charging this run:')
+
+                # Since plug1 has more amp hours, it should appear first
+                mock_logger.info.assert_any_call('    Plug1, charged for 0:00:10 added ~5.00 Ah')
+                mock_start_threshold_logger.info.assert_any_call('    Plug1, charged for 0:00:10 added ~5.00 Ah')
+                
+                mock_logger.info.assert_any_call('    Plug2, charged for 0:00:10 added ~3.00 Ah')
+                mock_start_threshold_logger.info.assert_any_call('    Plug2, charged for 0:00:10 added ~3.00 Ah')
+
+def test_active_plugs_below_threshold(mock_logger, mock_start_threshold_logger):
+    plug1 = MagicMock()
+    plug2 = MagicMock()
+
+    plug1.plug.get_power_total.return_value = 0.5
+    plug1.plug.total_amp_hours = 0.5
+    plug1.plug.name = 'Plug1'
+    plug1.start_time = 10
+    plug1.stop_time = 20
+
+    plug2.plug.get_power_total.return_value = 0.3
+    plug2.plug.total_amp_hours = 0.3
+    plug2.plug.name = 'Plug2'
+    plug2.start_time = 15
+    plug2.stop_time = 25
+
+    active_plugs: Set[ActivePlug] = {plug1, plug2}
+
+    with patch('scripts.ebike_battery_manager.logger', mock_logger):
+        with patch('scripts.ebike_battery_manager.start_threshold_logger', mock_start_threshold_logger):
+            with patch('scripts.ebike_battery_manager.MINIMUM_AMP_THRESHOLD_FOR_ACTIVE_CHARGE', 1):
+                target.log_actively_charging_plugs(active_plugs)
+
+                mock_logger.info.assert_called_once_with('No plugs were actively charging this run')
+                mock_start_threshold_logger.info.assert_not_called()
 
 def test_email_send_not_called_with_invalid_file():
     with patch('scripts.ebike_battery_manager.send') as mock:

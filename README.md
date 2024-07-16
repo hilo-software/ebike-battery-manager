@@ -70,7 +70,7 @@ A nominal start threshold is also supported.
 - https://github.com/python-kasa/python-kasa
 
 #### Naming the plugs
-- The script looks for all TP-Link devices prefixed with "battery_" and treats those as plugs with battery chargers attached.
+- The script optionally looks for all TP-Link devices prefixed with "battery_" and treats those as plugs with battery chargers attached.
 - Custom battery names can be specified via a config file.
 - After you have installed the python-kasa library should create a command line interface "kasa"
 - Use the kasa command without arguments to get all devices and their ip addresses
@@ -78,6 +78,9 @@ A nominal start threshold is also supported.
 - Naming a plug can be done using the kasa alias command at the command line in either a Mac OS Terminal or a linux Terminal.
     - $ kasa --host <ip> alias <new_name>
     - For example: ```$ kasa --host 192.168.1.555 alias battery_1``` assigns a plug the name of battery_1
+- Naming a plug that is part of a power strip requires the index of the plug to be specified.  Indexes start at 0.
+    - $ kasa --host <strip_ip> alias --index <plug_index> <new_name>
+    - For example: ```$ kasa --host 192.168.1.555 alias --index 1 strip_plug_1``` assigns the second plug on the strip the name of strip_plug_1
 ### Raspberry Pi
 - A Raspberry Pi is not mandatory but it is what I use to drive the script.
 - https://medium.com/geekculture/use-raspberry-pi-and-tp-link-kasa-to-automate-your-devices-9f936a6243c1

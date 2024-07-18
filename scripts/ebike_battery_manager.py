@@ -1639,8 +1639,8 @@ def log_actively_charging_plugs(active_plugs: Set[ActivePlug]) -> None:
             return plug.plug.get_power_total()
         
         def insert_sorted(sorted_list, item, key) -> None:
-            key_value = key(item)
-            bisect.insort(sorted_active_plugs, (key_value, item))
+            key_value = -key(item)
+            bisect.insort(sorted_list, (key_value, item))
 
         sorted_active_plugs = []
         for plug in active_plugs:
@@ -1650,25 +1650,31 @@ def log_actively_charging_plugs(active_plugs: Set[ActivePlug]) -> None:
         if len(sorted_active_plugs) == 0:
             logger.info(f'No plugs were actively charging this run')
             return
-
-        logger.info(f'The following plugs were actively charging this run:')
-        start_threshold_logger.info(
-            f'The following plugs were actively charging this run:')
-        
-        for _, plug in sorted_active_plugs:
-            if plug.start_time and plug.stop_time:
-                plug_elapsed_charge_time = plug.stop_time - plug.start_time
-                plug_name = plug.plug.name
-                total_amp_hours = plug.plug.total_amp_hours
-                logger.info(
-                    f'    {plug_name}, charged for {str(timedelta(seconds=plug_elapsed_charge_time)).split(".", 2)[0]} added ~{total_amp_hours:.2f} Ah')
-                start_threshold_logger.info(
-                    f'    {plug_name}, charged for {str(timedelta(seconds=plug_elapsed_charge_time)).split(".", 2)[0]} added ~{total_amp_hours:.2f} Ah')
-            else:
-                logger.info(
-                    f'    {plug.plug_name}, charged for unknown duration')
-                start_threshold_logger.info(
-                    f'    {plug.plug_name}, charged for unknown duration')
+        try:
+            logger.info(f'The following plugs were actively charging this run:')
+            start_threshold_logger.info(
+                f'The following plugs were actively charging this run:')
+            
+            for _, plug in sorted_active_plugs:
+                if plug.start_time and plug.stop_time:
+                    plug_elapsed_charge_time = plug.stop_time - plug.start_time
+                    total_seconds = int(plug_elapsed_charge_time.total_seconds())
+                    hours = total_seconds // 3600
+                    minutes = (total_seconds % 3600) // 60
+                    seconds = total_seconds % 60
+                    plug_name = plug.plug.name
+                    total_amp_hours = plug.plug.total_amp_hours
+                    logger.info(
+                        f'    {plug_name}, charged for {hours:02}:{minutes:02}:{seconds:02} added ~{total_amp_hours:.2f} Ah')
+                    start_threshold_logger.info(
+                        f'    {plug_name}, charged for {hours:02}:{minutes:02}:{seconds:02} added ~{total_amp_hours:.2f} Ah')
+                else:
+                    logger.info(
+                        f'    {plug.plug_name}, charged for unknown duration')
+                    start_threshold_logger.info(
+                        f'    {plug.plug_name}, charged for unknown duration')
+        except Exception as e:
+            logger.error(f'Exception in{fn_name()} for plug: {plug_name}: {str(e)}')
     else:
         logger.info(f'No plugs were actively charging this run')
 

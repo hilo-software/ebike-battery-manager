@@ -123,7 +123,7 @@ def set_sample_thresholds():
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
     assert len(target.BatteryManagerState().device_config) == 3
-    assert len(target.BatteryManagerState().plug_manufacturer_map) == 5
+    assert len(target.BatteryManagerState().plug_manufacturer_map) == 6
     assert len(target.BatteryManagerState().plug_storage_list) == 1
 
 def test_battery_manager_simple_state():
@@ -345,7 +345,7 @@ def test_verify_config_file():
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
     assert len(target.BatteryManagerState().device_config) == 3
-    assert len(target.BatteryManagerState().plug_manufacturer_map) == 5
+    assert len(target.BatteryManagerState().plug_manufacturer_map) == 6
     assert len(target.BatteryManagerState().plug_storage_list) == 1
     reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'error_battery_plug_file.config')
@@ -545,7 +545,7 @@ def test_storage_mode():
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
     assert len(target.BatteryManagerState().device_config) == 3
-    assert len(target.BatteryManagerState().plug_manufacturer_map) == 5
+    assert len(target.BatteryManagerState().plug_manufacturer_map) == 6
     assert len(target.BatteryManagerState().plug_storage_list) == 1
     assert target.BatteryManagerState().device_config['Rad'].nominal_charge_start_power_threshold == 90.0
     assert target.BatteryManagerState().device_config['Rad'].nominal_charge_stop_power_threshold == 45.0
@@ -901,20 +901,27 @@ def test_no_active_plugs(mock_logger, mock_start_threshold_logger):
 def test_active_plugs(mock_logger, mock_start_threshold_logger):
     plug1 = MagicMock()
     plug2 = MagicMock()
+    plug3 = MagicMock()
 
     plug1.plug.get_power_total.return_value = 5.0
     plug1.plug.total_amp_hours = 5.0
     plug1.plug.name = 'Plug1'
-    plug1.start_time = 10
-    plug1.stop_time = 20
+    plug1.start_time = datetime.now()
+    plug1.stop_time = datetime.now() + timedelta(seconds=10)
 
     plug2.plug.get_power_total.return_value = 3.0
     plug2.plug.total_amp_hours = 3.0
     plug2.plug.name = 'Plug2'
-    plug2.start_time = 15
-    plug2.stop_time = 25
+    plug2.start_time = datetime.now()
+    plug2.stop_time = datetime.now() + timedelta(seconds=10)
 
-    active_plugs: Set[ActivePlug] = {plug1, plug2}
+    plug3.plug.get_power_total.return_value = 7.333333333333333
+    plug3.plug.total_amp_hours = 7.333333333333333
+    plug3.plug.name = 'lectric_one'
+    plug3.start_time = datetime.now()
+    plug3.stop_time = datetime.now() + timedelta(seconds=30)   
+
+    active_plugs: Set[ActivePlug] = {plug1, plug2, plug3}
 
     with patch('scripts.ebike_battery_manager.logger', mock_logger):
         with patch('scripts.ebike_battery_manager.start_threshold_logger', mock_start_threshold_logger):
@@ -925,11 +932,14 @@ def test_active_plugs(mock_logger, mock_start_threshold_logger):
                 mock_start_threshold_logger.info.assert_any_call('The following plugs were actively charging this run:')
 
                 # Since plug1 has more amp hours, it should appear first
-                mock_logger.info.assert_any_call('    Plug1, charged for 0:00:10 added ~5.00 Ah')
-                mock_start_threshold_logger.info.assert_any_call('    Plug1, charged for 0:00:10 added ~5.00 Ah')
+                mock_logger.info.assert_any_call('    Plug1, charged for 00:00:10 added ~5.00 Ah')
+                mock_start_threshold_logger.info.assert_any_call('    Plug1, charged for 00:00:10 added ~5.00 Ah')
                 
-                mock_logger.info.assert_any_call('    Plug2, charged for 0:00:10 added ~3.00 Ah')
-                mock_start_threshold_logger.info.assert_any_call('    Plug2, charged for 0:00:10 added ~3.00 Ah')
+                mock_logger.info.assert_any_call('    Plug2, charged for 00:00:10 added ~3.00 Ah')
+                mock_start_threshold_logger.info.assert_any_call('    Plug2, charged for 00:00:10 added ~3.00 Ah')
+
+                mock_logger.info.assert_any_call('    lectric_one, charged for 00:00:30 added ~7.33 Ah')
+                mock_start_threshold_logger.info.assert_any_call('    lectric_one, charged for 00:00:30 added ~7.33 Ah')
 
 def test_active_plugs_below_threshold(mock_logger, mock_start_threshold_logger):
     plug1 = MagicMock()

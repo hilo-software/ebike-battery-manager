@@ -47,6 +47,7 @@ COARSE_PROBE_THRESHOLD_MARGIN_TAG = 'coarse_probe_threshold_margin'
 CHARGER_AMP_HOUR_RATE_TAG = 'charger_amp_hour_rate'
 BATTERY_AMP_HOUR_CAPACITY_TAG = 'battery_amp_hour_capacity'
 BATTERY_VOLTAGE_TAG = 'battery_voltage'
+CHARGER_EFFICIENCY_TAG = "charger_efficiency"
 INVESTIGATE_START_CURRENT_FILE = 'start_current_data.txt'
 # Now experimenting with various thresholds.  For Rad 90W appears to end up at ~91%.
 NOMINAL_CHARGE_START_THRESHOLD_DEFAULT = 90.0
@@ -61,7 +62,7 @@ FULL_CHARGE_REPEAT_LIMIT = 3
 PLUG_RETRY_SETUP_LIMIT = 3
 MAX_RUNTIME_HOURS_DEFAULT = 12
 DEFAULT_BATTERY_VOLTAGE = 48.0
-CHARGER_EFFICIENCY = 0.9
+CHARGER_EFFICIENCY = 0.75
 CUSTOM_LEVEL_NUM = 25
 CUSTOM_LEVEL_NAME = "CUSTOM"
 
@@ -444,6 +445,7 @@ class DeviceConfig():
     battery_amp_hour_capacity: float
     charger_max_hours_to_run: int
     battery_voltage: Optional[float] = DEFAULT_BATTERY_VOLTAGE
+    charger_efficiency: Optional[float] = CHARGER_EFFICIENCY
 
     def __post_init__(self):
         if self.battery_voltage is None:
@@ -508,7 +510,8 @@ class BatteryPlug():
         if self.initial_amp_hours < 0 or self.initial_amp_hours > amp_hours:
             self.initial_amp_hours = 0
         self.total_amp_hours = amp_hours - self.initial_amp_hours
-        return self.total_amp_hours * CHARGER_EFFICIENCY
+        logger.error(f"plug: {self.name}, actual amp hours: {self.total_amp_hours}, CHARGER_EFFICIENCY: {self.config.charger_efficiency}, estimated battery amp hours: {self.total_amp_hours * CHARGER_EFFICIENCY}")
+        return self.total_amp_hours * self.config.charger_efficiency
 
     def get_power(self) -> float:
         '''
@@ -723,7 +726,8 @@ class BatteryStripPlug(BatteryPlug):
         if self.initial_amp_hours < 0 or self.initial_amp_hours > amp_hours:
             self.initial_amp_hours = 0
         self.total_amp_hours = amp_hours - self.initial_amp_hours
-        return self.total_amp_hours * CHARGER_EFFICIENCY
+        logger.error(f"plug: {self.name}, actual amp hours: {self.total_amp_hours}, CHARGER_EFFICIENCY: {self.config.charger_efficiency}, estimated battery amp hours: {self.total_amp_hours * CHARGER_EFFICIENCY}")
+        return self.total_amp_hours * self.config.charger_efficiency
 
     def get_power(self) -> float:
         '''
@@ -1390,6 +1394,8 @@ def verify_config_file(config_file_name: str) -> bool:
                         battery_amp_hour_capacity / charger_amp_hour_rate) if charger_amp_hour_rate > 0.0 and battery_amp_hour_capacity > 0.0 else BatteryManagerState().max_hours_to_run
                     battery_voltage = float(
                         config_parser[manufacturer][BATTERY_VOLTAGE_TAG]) if BATTERY_VOLTAGE_TAG in config_parser[manufacturer] else None
+                    charger_efficiency = float(
+                        config_parser[manufacturer][CHARGER_EFFICIENCY_TAG]) if CHARGER_EFFICIENCY_TAG in config_parser[manufacturer] else CHARGER_EFFICIENCY
                     device_config[manufacturer] = DeviceConfig(manufacturer,
                                                                        nominal_charge_start_power_threshold,
                                                                        nominal_charge_stop_power_threshold,
@@ -1402,7 +1408,8 @@ def verify_config_file(config_file_name: str) -> bool:
                                                                        charger_amp_hour_rate,
                                                                        battery_amp_hour_capacity,
                                                                        charger_max_hours_to_run,
-                                                                       battery_voltage)
+                                                                       battery_voltage,
+                                                                       charger_efficiency=charger_efficiency)
 
             sections = list(config_parser.keys())
             if CONFIG_PLUGS_SECTION in sections:
@@ -1603,8 +1610,9 @@ def log_start_state(max_hours_to_run: int,
     logger.info(
         f'  -------- storage_charge_cycle_limit: {str(BatteryManagerState().storage_charge_cycle_limit)}')
     logger.info(
-        f'  -------- scan_for_battery_prefix: {BatteryManagerState().scan_for_battery_prefix}'
-    )
+        f'  -------- scan_for_battery_prefix: {BatteryManagerState().scan_for_battery_prefix}')
+    logger.info(
+        f'  -------- charger_efficiency: {str(default_config.charger_efficiency)}')
     if config_file_is_valid:
         logger.info(f'  ---- MANUFACTURER specific thresholds')
         for manufacturer in device_config:
@@ -1631,6 +1639,8 @@ def log_start_state(max_hours_to_run: int,
                 f'  -------- charger_max_hours_to_run: {str(device_config[manufacturer].charger_max_hours_to_run)}')
             logger.info(
                 f'  -------- battery_voltage: {str(device_config[manufacturer].battery_voltage)}')
+            logger.info(
+                f'  -------- charger_efficiency: {str(device_config.charger_efficiency)}')
 
 
 def log_actively_charging_plugs(active_plugs: Set[ActivePlug]) -> None:
@@ -1663,7 +1673,7 @@ def log_actively_charging_plugs(active_plugs: Set[ActivePlug]) -> None:
                     minutes = (total_seconds % 3600) // 60
                     seconds = total_seconds % 60
                     plug_name = plug.plug.name
-                    total_amp_hours = plug.plug.total_amp_hours
+                    total_amp_hours = get_total_amp_hours(plug)
                     logger.info(
                         f'    {plug_name}, charged for {hours:02}:{minutes:02}:{seconds:02} added ~{total_amp_hours:.2f} Ah')
                     start_threshold_logger.info(

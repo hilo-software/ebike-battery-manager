@@ -552,11 +552,13 @@ def test_storage_mode():
     assert target.BatteryManagerState().device_config['Rad'].full_charge_power_threshold == 5.0
     assert target.BatteryManagerState().device_config['Rad'].storage_charge_start_power_threshold == 115.0
     assert target.BatteryManagerState().device_config['Rad'].storage_charge_stop_power_threshold == 115.0
+    assert target.BatteryManagerState().device_config['Rad'].charger_efficiency == 0.80
     assert target.BatteryManagerState().device_config['Lectric'].nominal_charge_start_power_threshold == 40.0
     assert target.BatteryManagerState().device_config['Lectric'].nominal_charge_stop_power_threshold == 40.0
     assert target.BatteryManagerState().device_config['Lectric'].full_charge_power_threshold == 10.0
     assert target.BatteryManagerState().device_config['Lectric'].storage_charge_start_power_threshold == target.STORAGE_CHARGE_START_THRESHOLD_DEFAULT
     assert target.BatteryManagerState().device_config['Lectric'].storage_charge_stop_power_threshold == target.STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT
+    assert target.BatteryManagerState().device_config['Lectric'].charger_efficiency == target.CHARGER_EFFICIENCY
     for plug_name in list(target.BatteryManagerState().plug_manufacturer_map.keys()):
         print(f'test_storage_mode:plug_name: {plug_name}')
         if 'rad' in plug_name:
@@ -572,6 +574,71 @@ def test_storage_mode():
         if 'lectric' in plug_name:
             strip_plug: target.BatteryStripPlug = target.create_battery_strip_plug(plug_name, any, 0)
             verify_plug(strip_plug, 40.0, 40.0, 90.0, 10.0)
+
+class MockSmartDevice:
+    emeter_today = 0.0
+    def update(self):
+        pass
+
+def test_get_power_total():
+    reset_device_config()
+
+    device = MockSmartDevice()
+    device.emeter_today = 1.0
+
+    def setup_plug(plug: target.BatteryPlug):
+        plug.initial_amp_hours = 0.0
+
+    result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
+    assert result == True
+    assert len(target.BatteryManagerState().device_config) == 3
+    assert len(target.BatteryManagerState().plug_manufacturer_map) == 6
+    assert len(target.BatteryManagerState().plug_storage_list) == 1
+    for plug_name in list(target.BatteryManagerState().plug_manufacturer_map.keys()):
+        if 'rad' in plug_name:
+            plug: target.BatteryPlug = target.create_battery_plug(plug_name, device)
+            setup_plug(plug)
+            power_total = plug.get_power_total()
+            # Calculate expected results
+            expected_amp_hours = target.kw_h_to_amp_hours(device.emeter_today, plug.config.battery_voltage)
+            expected_total_amp_hours = expected_amp_hours - plug.initial_amp_hours
+            expected_power_total = expected_total_amp_hours * plug.config.charger_efficiency
+            # Assertions to verify the method behavior
+            assert plug.total_amp_hours == expected_total_amp_hours, f"Expected total amp hours: {expected_total_amp_hours}, but got: {plug.total_amp_hours}"
+            assert power_total == expected_power_total, f"Expected power total: {expected_power_total}, but got: {power_total}"
+        if 'rad' in plug_name:
+            strip_plug: target.BatteryStripPlug = target.create_battery_strip_plug(plug_name, device, 0)
+            setup_plug(strip_plug)
+            power_total = plug.get_power_total()
+            # Calculate expected results
+            expected_amp_hours = target.kw_h_to_amp_hours(device.emeter_today, plug.config.battery_voltage)
+            expected_total_amp_hours = expected_amp_hours - plug.initial_amp_hours
+            expected_power_total = expected_total_amp_hours * plug.config.charger_efficiency
+            # Assertions to verify the method behavior
+            assert plug.total_amp_hours == expected_total_amp_hours, f"Expected total amp hours: {expected_total_amp_hours}, but got: {plug.total_amp_hours}"
+            assert power_total == expected_power_total, f"Expected power total: {expected_power_total}, but got: {power_total}"
+        if 'lectric' in plug_name:
+            plug: target.BatteryPlug = target.create_battery_plug(plug_name, device)
+            setup_plug(plug)
+            power_total = plug.get_power_total()
+            # Calculate expected results
+            expected_amp_hours = target.kw_h_to_amp_hours(device.emeter_today, plug.config.battery_voltage)
+            expected_total_amp_hours = expected_amp_hours - plug.initial_amp_hours
+            expected_power_total = expected_total_amp_hours * plug.config.charger_efficiency
+            # Assertions to verify the method behavior
+            assert plug.total_amp_hours == expected_total_amp_hours, f"Expected total amp hours: {expected_total_amp_hours}, but got: {plug.total_amp_hours}"
+            assert power_total == expected_power_total, f"Expected power total: {expected_power_total}, but got: {power_total}"
+        if 'lectric' in plug_name:
+            strip_plug: target.BatteryStripPlug = target.create_battery_strip_plug(plug_name, device, 0)
+            setup_plug(strip_plug)
+            power_total = plug.get_power_total()
+            # Calculate expected results
+            expected_amp_hours = target.kw_h_to_amp_hours(device.emeter_today, plug.config.battery_voltage)
+            expected_total_amp_hours = expected_amp_hours - plug.initial_amp_hours
+            expected_power_total = expected_total_amp_hours * plug.config.charger_efficiency
+            # Assertions to verify the method behavior
+            assert plug.total_amp_hours == expected_total_amp_hours, f"Expected total amp hours: {expected_total_amp_hours}, but got: {plug.total_amp_hours}"
+            assert power_total == expected_power_total, f"Expected power total: {expected_power_total}, but got: {power_total}"
 
 def test_full_charge_mode():
     reset_device_config()
@@ -852,6 +919,21 @@ def test_override_battery_voltage() -> None:
                                           test_battery_override_voltage)
     plug = BatteryPlug('test_battery_name', any, max_cycles_in_fine_mode, nominal_thresholds)
     assert plug.config.battery_voltage == test_battery_override_voltage
+
+def test_default_charger_efficiency() -> None:
+    nominal_thresholds = DeviceConfig(rad_config.manufacturer_name,
+                                          rad_config.nominal_charge_start_power_threshold,
+                                          rad_config.nominal_charge_stop_power_threshold,
+                                          rad_config.full_charge_power_threshold,
+                                          rad_config.storage_charge_start_power_threshold,
+                                          rad_config.storage_charge_stop_power_threshold,
+                                          rad_config.storage_charge_cycle_limit,
+                                          20,
+                                          rad_config.charger_amp_hour_rate,
+                                          rad_config.battery_amp_hour_capacity,
+                                          rad_config.charger_max_hours_to_run)
+    plug = BatteryPlug('test_battery_name', any, max_cycles_in_fine_mode, nominal_thresholds)
+    assert plug.config.charger_efficiency == target.CHARGER_EFFICIENCY
 
 def compute_amp_hours(watts: float, seconds: int, battery_voltage: float) -> float:
         watt_hours: float = watts * (float(seconds) / 60.0)

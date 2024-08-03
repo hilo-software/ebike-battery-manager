@@ -506,11 +506,11 @@ class BatteryPlug():
 
     def get_power_total(self) -> float:
         amp_hours = kw_h_to_amp_hours(self.device.emeter_today, self.config.battery_voltage)
-        # logger.info(f'{fn_name()}: kw_h: {str(self.device.emeter_today)}, amp_hours: {str(amp_hours)}')
+        logger.info(f'{fn_name()}: kw_h: {str(self.device.emeter_today)}, amp_hours: {str(amp_hours)}')
         if self.initial_amp_hours < 0 or self.initial_amp_hours > amp_hours:
             self.initial_amp_hours = 0
         self.total_amp_hours = amp_hours - self.initial_amp_hours
-        logger.error(f"plug: {self.name}, actual amp hours: {self.total_amp_hours}, CHARGER_EFFICIENCY: {self.config.charger_efficiency}, estimated battery amp hours: {self.total_amp_hours * CHARGER_EFFICIENCY}")
+        logger.info(f"plug: {self.name}, actual amp hours: {self.total_amp_hours}, CHARGER_EFFICIENCY: {self.config.charger_efficiency}, estimated battery amp hours: {self.total_amp_hours * CHARGER_EFFICIENCY}")
         return self.total_amp_hours * self.config.charger_efficiency
 
     def get_power(self) -> float:
@@ -722,11 +722,11 @@ class BatteryStripPlug(BatteryPlug):
     def get_power_total(self) -> float:
         child_plug = self.device.children[self.plug_index]
         amp_hours = kw_h_to_amp_hours(child_plug.emeter_today, self.config.battery_voltage)
-        # logger.info(f'{fn_name()}: kw_h: {str(child_plug.emeter_today)}, amp_hours: {str(amp_hours)}')
+        logger.info(f'{fn_name()}: kw_h: {str(child_plug.emeter_today)}, amp_hours: {str(amp_hours)}')
         if self.initial_amp_hours < 0 or self.initial_amp_hours > amp_hours:
             self.initial_amp_hours = 0
         self.total_amp_hours = amp_hours - self.initial_amp_hours
-        logger.error(f"plug: {self.name}, actual amp hours: {self.total_amp_hours}, CHARGER_EFFICIENCY: {self.config.charger_efficiency}, estimated battery amp hours: {self.total_amp_hours * CHARGER_EFFICIENCY}")
+        logger.info(f"plug: {self.name}, actual amp hours: {self.total_amp_hours}, CHARGER_EFFICIENCY: {self.config.charger_efficiency}, estimated battery amp hours: {self.total_amp_hours * CHARGER_EFFICIENCY}")
         return self.total_amp_hours * self.config.charger_efficiency
 
     def get_power(self) -> float:

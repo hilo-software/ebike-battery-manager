@@ -103,7 +103,7 @@ A nominal start threshold is also supported.
 ### Command line arguments
 
 ```
- ./ebike_battery_manager.py -h
+$ ./scripts/ebike_battery_manager.py -h
 usage: ebike_battery_manager.py [OPTIONS]
 
 Manage EBike battery charging with TP-Link smart socket(s)
@@ -136,7 +136,9 @@ options:
                         set the storage power override for storage charge complete
   --storage_charge_cycle_limit 
                         max cycles to charge in storage charge mode, default is 1
-  --max_hours_to_run    maximum time to run the script in hours (Default is 12 hours)
+  --max_hours_to_run    maximum time to run the script in hours
+  --scan_for_battery_prefix
+                        enables auto scan for any plugs with a battery_ prefix
 ```
 
 ### Configuration file
@@ -168,6 +170,10 @@ options:
             - In conjunction with the battery_amp_hour_capacity field this is used to determine the maximum cutoff time for a battery to be charged.
         - battery_amp_hour_capacity
             - Battery capacity in amp hours.
+        - charger_efficiency
+            - The value for this field is a fraction between 0.0 and 1.0, default is 0.8
+            - The value is used as a rough estimate of power actually sent to the battery.  For example, if the charger_efficiency value is 0.8 then we are estimating that 80% of the observed power used at a plug is actually sent to the battery with 20% lost in the charger electronics.
+            - This value is used to compute the estimated amount of charge in amp hours sent to a given battery.
         - If both charger_amp_hour_rate and battery_amp_hour_capacity are set, the script can more accurately set an overall maximum runtime for the charger and battery pair.  If the fields are not set the script will use the overall max_hours_to_run.
 
 - The [Plugs] section matches plug_names with manufacturer section profiles.

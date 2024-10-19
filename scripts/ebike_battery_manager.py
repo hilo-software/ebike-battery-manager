@@ -731,7 +731,7 @@ class BatteryStripPlug(BatteryPlug):
 
     def get_power(self) -> float:
         '''
-        Convert kw to watts
+        Retrieve power usage from device
 
         Returns:
             float: power in watts
@@ -1640,7 +1640,7 @@ def log_start_state(max_hours_to_run: int,
             logger.info(
                 f'  -------- battery_voltage: {str(device_config[manufacturer].battery_voltage)}')
             logger.info(
-                f'  -------- charger_efficiency: {str(device_config.charger_efficiency)}')
+                f'  -------- charger_efficiency: {str(device_config[manufacturer].charger_efficiency)}')
 
 
 def log_actively_charging_plugs(active_plugs: Set[ActivePlug]) -> None:

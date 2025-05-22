@@ -19,6 +19,7 @@ import signal
 import sys
 import inspect
 import bisect
+from hilo_software_utilities.send_mail import send_file_email
 
 # Constants
 CLOSE_MISS_PCT = 0.05
@@ -1452,57 +1453,57 @@ ancillary email functions
 '''
 
 
-def send(from_addr, to_addr, app_key, msg) -> None:
-    '''
-    Constructs and sends email of log via SMTP for gmail.
-    Must have an app_key
-    Interested in different email, rewrite this.
+# def send(from_addr, to_addr, app_key, msg) -> None:
+#     '''
+#     Constructs and sends email of log via SMTP for gmail.
+#     Must have an app_key
+#     Interested in different email, rewrite this.
 
-    Args:
-        from_addr (_type_): _description_
-        to_addr (_type_): _description_
-        app_key (_type_): _description_
-        msg (_type_): _description_
-    '''
-    try:
-        logger.info(f'[EMAIL] send')
-        smtpobj = smtplib.SMTP('smtp.gmail.com', 587)
-        smtpobj.ehlo()
-        smtpobj.starttls()
-        smtpobj.ehlo()
-        smtpobj.login(from_addr, app_key)
-        smtpobj.sendmail(from_addr, to_addr, msg.as_string())
-        smtpobj.close()
-        logger.info(f'[EMAIL] sent')
-    except smtplib.SMTPException as e:
-        logger.error(f'MAIL SMTP ERROR: Unable to send mail: {str(e)}')
-    except Exception as e:
-        logger.error(f'MAIL General ERROR: Unexpected Exception in send: Unable to send mail: {str(e)}')
+#     Args:
+#         from_addr (_type_): _description_
+#         to_addr (_type_): _description_
+#         app_key (_type_): _description_
+#         msg (_type_): _description_
+#     '''
+#     try:
+#         logger.info(f'[EMAIL] send')
+#         smtpobj = smtplib.SMTP('smtp.gmail.com', 587)
+#         smtpobj.ehlo()
+#         smtpobj.starttls()
+#         smtpobj.ehlo()
+#         smtpobj.login(from_addr, app_key)
+#         smtpobj.sendmail(from_addr, to_addr, msg.as_string())
+#         smtpobj.close()
+#         logger.info(f'[EMAIL] sent')
+#     except smtplib.SMTPException as e:
+#         logger.error(f'MAIL SMTP ERROR: Unable to send mail: {str(e)}')
+#     except Exception as e:
+#         logger.error(f'MAIL General ERROR: Unexpected Exception in send: Unable to send mail: {str(e)}')
 
 
-def send_my_mail(email: str, app_key: str, log_file: str) -> None:
-    if email == None or app_key == None:
-        print('Email args missing not sending')
-    else:
-        try:
-            logger.info(f'[EMAIL] send_my_mail')
-            # Create a text/plain message
-            with open(log_file, 'r') as f:
-                msg = EmailMessage()
+# def send_my_mail(email: str, app_key: str, log_file: str) -> None:
+#     if email == None or app_key == None:
+#         print('Email args missing not sending')
+#     else:
+#         try:
+#             logger.info(f'[EMAIL] send_my_mail')
+#             # Create a text/plain message
+#             with open(log_file, 'r') as f:
+#                 msg = EmailMessage()
 
-                f.seek(0)
-                msg.set_content(f.read())
+#                 f.seek(0)
+#                 msg.set_content(f.read())
 
-                # me == the sender's email address
-                # you == the recipient's email address
-                msg['Subject'] = f'battery_plug_controller status'
-                msg['From'] = f'{email}'
-                msg['To'] = f'{email}'
-                send(email, email, app_key, msg)
-        except IOError:
-            print(f'ERROR [send_my_mail] -- Could not read file: {log_file}')
-        except Exception:
-            print(f'ERROR [send_my_mail] -- Could not open file: {log_file}')
+#                 # me == the sender's email address
+#                 # you == the recipient's email address
+#                 msg['Subject'] = f'battery_plug_controller status'
+#                 msg['From'] = f'{email}'
+#                 msg['To'] = f'{email}'
+#                 send(email, email, app_key, msg)
+#         except IOError:
+#             print(f'ERROR [send_my_mail] -- Could not read file: {log_file}')
+#         except Exception:
+#             print(f'ERROR [send_my_mail] -- Could not open file: {log_file}')
 
 
 async def test_stuff() -> None:
@@ -1763,7 +1764,7 @@ def run_battery_controller(max_hours_to_run: int,
     log_actively_charging_plugs(active_plugs=active_plugs)
     logger.info(f'==> Elapsed time: {str(elapsed_time).split(".", 2)[0]}')
 
-    send_my_mail(email, app_key, log_file)
+    send_file_email(email=email, app_key=app_key, subject=f'battery_plug_controller status', file_path=log_file)
 
 
 def setup_logging_handlers(log_file: str) -> list:

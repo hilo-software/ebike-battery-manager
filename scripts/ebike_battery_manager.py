@@ -20,6 +20,7 @@ import sys
 import inspect
 import bisect
 from hilo_software_utilities.send_mail import send_file_email
+from hilo_software_utilities.custom_logger import init_logging
 
 # Constants
 CLOSE_MISS_PCT = 0.05
@@ -64,8 +65,6 @@ PLUG_RETRY_SETUP_LIMIT = 3
 MAX_RUNTIME_HOURS_DEFAULT = 12
 DEFAULT_BATTERY_VOLTAGE = 48.0
 CHARGER_EFFICIENCY = 0.75
-CUSTOM_LEVEL_NUM = 25
-CUSTOM_LEVEL_NAME = "CUSTOM"
 
 # mandatory_config_manufacturer_tags = [FULL_CHARGE_THRESHOLD_TAG, COARSE_PROBE_THRESHOLD_MARGIN_TAG]
 # one_of_config_manufacturer_threshold_tags = [NOMINAL_START_THRESHOLD_TAG, NOMINAL_STOP_THRESHOLD_TAG]
@@ -1709,72 +1708,6 @@ def run_battery_controller(max_hours_to_run: int,
     send_file_email(email=email, app_key=app_key, subject=f'battery_plug_controller status', file_path=log_file)
 
 
-def setup_logging_handlers(log_file: str) -> list:
-    try:
-        logging_file_handler = logging.FileHandler(filename=log_file, mode='w')
-    except (IOError, OSError, ValueError, FileNotFoundError) as e:
-        print(f'ERROR -- Could not create logging file: {log_file}, e: {str(e)}')
-        logging_handlers = [
-            logging.StreamHandler()
-        ]
-        return logging_handlers
-    except Exception as e:
-        print(f'ERROR -- Unexpected Exception: Could not create logging file: {log_file}, e: {str(e)}')
-        logging_handlers = [
-            logging.StreamHandler()
-        ]
-        return logging_handlers
-
-    logging_handlers = [
-        logging_file_handler,
-        logging.StreamHandler()
-    ]
-    return logging_handlers
-
-
-# Define formats
-default_format = "%(asctime)s %(levelname)s: %(message)s"
-info_format = "%(message)s"
-custom_format = "%(asctime)s CUSTOM: %(message)s"
-
-
-def custom(self, message, *args, **kws):
-    if self.isEnabledFor(CUSTOM_LEVEL_NUM):
-        self._log(CUSTOM_LEVEL_NUM, message, args, **kws)
-
-
-class CustomFormatter(logging.Formatter):
-    def __init__(self, fmt=None, datefmt=None, info_fmt=None, custom_fmt=None, *args, **kwargs):
-        super().__init__(fmt, datefmt, *args, **kwargs)
-        self.default_fmt = fmt
-        self.info_fmt = info_fmt
-        self.custom_fmt = custom_fmt
-
-    def format(self, record):
-        # Use different format for INFO level
-        if record.levelno == logging.INFO:
-            self._style._fmt = self.info_fmt
-        # Use different format for CUSTOM level
-        elif record.levelno == CUSTOM_LEVEL_NUM:
-            self._style._fmt = self.custom_fmt
-            record.levelname = CUSTOM_LEVEL_NAME  # Ensure the custom level name is used
-        else:
-            self._style._fmt = self.default_fmt
-        return super().format(record)
-
-
-def init_logging() -> logging.Logger:
-    logging.addLevelName(CUSTOM_LEVEL_NUM, CUSTOM_LEVEL_NAME)
-    logging.Logger.custom = custom
-    logger = logging.getLogger('')
-    logger.setLevel(logging.INFO)
-    formatter = CustomFormatter(fmt=default_format, info_fmt=info_format, custom_fmt=custom_format, datefmt="%Y-%m-%d %H:%M:%S")
-    logging_handlers = setup_logging_handlers(BatteryManagerState().log_file)
-    for handler in logging_handlers:
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-    return logger
-
 def exit_handler():
     """
     This function is registered with atexit to handle graceful shutdown of async tasks.
@@ -1907,17 +1840,7 @@ def main() -> None:
     if args.log_file_name != None:
         BatteryManagerState().log_file = args.log_file_name
 
-    logger = init_logging()
-    # logging_handlers = setup_logging_handlers(BatteryManagerState().log_file)
-    # logging.basicConfig(
-    #     level=logging.INFO,
-    #     format="%(asctime)s [%(levelname)s] %(message)s",
-    #     datefmt='%Y-%m-%d %H:%M:%S',
-    #     handlers=logging_handlers
-    # )
-    # logger.info(f"Test Info")
-    # logger.custom(f"Test custom")
-    # logger.debug(f"Test debug")
+    logger = init_logging(log_file=BatteryManagerState().log_file)
 
     logger.custom('>>>>> START <<<<<')
     BatteryManagerState().force_full_charge = args.force_full_charge

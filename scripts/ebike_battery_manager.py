@@ -1196,7 +1196,7 @@ async def analyze_loop(final_stop_time: datetime) -> Union[bool, AnalyzeExceptio
         AnalyzeException: Error condition.  This is caught internally.
 
     Returns:
-        bool: Normal exit indicating success or not
+        bool: Normal exit indicating success or an AnalyzeException
     '''
     probe_interval_secs: int = BatteryManagerState().probe_interval_secs
     battery_plug_list = BatteryManagerState().battery_plug_list
@@ -1645,12 +1645,6 @@ def run_battery_controller(max_hours_to_run: int,
 
 
     Args:
-        nominal_charge_start_power_threshold (float): 
-        nominal_charge_stop_power_threshold (float): 
-        full_charge_power_threshold (float): 
-        storage_charge_start_power_threshold (float): 
-        storage_charge_stop_power_threshold (float): 
-        storage_charge_cycle_limit (int): 
         max_hours_to_run (int): 
         log_file (str): 
         config_file (str): 
@@ -1726,7 +1720,7 @@ def exit_handler():
             logger.info("Running shutdown_plugs in the existing event loop")
             loop.run_until_complete(shutdown_plugs())
     except RuntimeError as e:
-        logger.error(f"Failed to get event loop: {e}")
+        logger.info(f"Failed to get event loop: {e}")
         # Create a new event loop if the current one is not available
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)

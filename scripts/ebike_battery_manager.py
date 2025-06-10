@@ -1709,26 +1709,27 @@ def exit_handler():
     coroutine within that loop. If the loop is not running, it creates a new event loop
     to run the shutdown_plugs coroutine.
     """
-    logger.info("Executing exit_handler")
-
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            logger.info("Running shutdown_plugs within the current event loop")
-            loop.create_task(shutdown_plugs())
-        else:
-            logger.info("Running shutdown_plugs in the existing event loop")
+    battery_plug_list = BatteryManagerState().battery_plug_list
+    active_plug_ct = len(battery_plug_list )
+    logger.info(f"Executing exit_handler, active_plug_ct: {active_plug_ct}")
+    if active_plug_ct > 0:
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                logger.info("Running shutdown_plugs within the current event loop")
+                loop.create_task(shutdown_plugs())
+            else:
+                logger.info("Running shutdown_plugs in the existing event loop")
+                loop.run_until_complete(shutdown_plugs())
+        except RuntimeError as e:
+            logger.info(f"Failed to get event loop: {e}")
+            # Create a new event loop if the current one is not available
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            logger.info("Running shutdown_plugs in a new event loop")
             loop.run_until_complete(shutdown_plugs())
-    except RuntimeError as e:
-        logger.info(f"Failed to get event loop: {e}")
-        # Create a new event loop if the current one is not available
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        logger.info("Running shutdown_plugs in a new event loop")
-        loop.run_until_complete(shutdown_plugs())
-        loop.close()
-
-    logger.info("Event loop closed")
+            loop.close()
+        logger.info("Event loop closed")
 
 def process_overrides(args) -> None:
     if args.scan_for_battery_prefix != None and args.scan_for_battery_prefix == True:

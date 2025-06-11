@@ -1711,6 +1711,9 @@ def exit_handler():
     """
     battery_plug_list = BatteryManagerState().battery_plug_list
     active_plug_ct = len(battery_plug_list )
+    # Note, this log line will not appear in the email if the finish is normal
+    # since the email is sent earlier.  If there are still plugs and we have
+    # to initiate a cleanup, then the logs below will appear.
     logger.info(f"Executing exit_handler, active_plug_ct: {active_plug_ct}")
     if active_plug_ct > 0:
         try:

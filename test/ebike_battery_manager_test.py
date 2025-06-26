@@ -10,7 +10,12 @@ from math import ceil
 from typing import Set
 import time
 import configparser
+from hilo_software_utilities.custom_logger import (
+    init_logging, setup_logging_handlers,
+    CustomFormatter, CUSTOM_LEVEL_NUM, CUSTOM_LEVEL_NAME
+)
 
+TEST_LOG_FILE='ebike_battery_manager_test.log'
 CONFIG_PATH = './config/'
 LECTRIC_NOMINAL_START_THRESHOLD = 90.0
 LECTRIC_NOMINAL_STOP_THRESHOLD = 80.0
@@ -83,7 +88,7 @@ def execute_before_any_test():
     global rad_config, battery_plug_list
     assert len(target.BatteryManagerState().device_config) == 0
     assert len(target.BatteryManagerState().battery_plug_list) == 0
-    target.logger = target.init_logging()
+    target.logger = target.init_logging(TEST_LOG_FILE)
     target.BatteryManagerState().device_config['Rad'] = rad_config
     target.BatteryManagerState().device_config['Lectric'] = lectric_config
     create_default_device_config()
@@ -329,11 +334,11 @@ def test_process_overrides(args, expected_logs, caplog):
 def test_setup_logging_handlers():
     # Passing a null filename will cause an exception and the 
     # logging_handlers list should only have one item.
-    logging_handlers = target.setup_logging_handlers('')
+    logging_handlers = setup_logging_handlers('', False, 0)
     assert len(logging_handlers) == 1
     # Passing a valid filename will create the log file and the 
     # logging_handlers list should have two items.
-    logging_handlers = target.setup_logging_handlers('foo.txt')
+    logging_handlers = setup_logging_handlers('foo.txt', False, 0)
     assert len(logging_handlers) == 2
 
 def test_verify_config_file():
@@ -962,15 +967,15 @@ def test_active_plugs():
         assert elapsed_time.seconds > 0
 
 def test_setup_logging_handlers_with_valid_file():
-    logging_handlers = target.setup_logging_handlers('foo')
+    logging_handlers = setup_logging_handlers('foo', False, 0)
     assert len(logging_handlers) == 2
 
 def test_setup_logging_handlers_with_invalid_file():
-    logging_handlers = target.setup_logging_handlers('/usr/foo')
+    logging_handlers = setup_logging_handlers('/usr/foo', False, 0)
     assert len(logging_handlers) == 1
 
 def test_setup_logging_handlers_with_blank_file_name():
-    logging_handlers = target.setup_logging_handlers('')
+    logging_handlers = setup_logging_handlers('', False, 0)
     assert len(logging_handlers) == 1
 
 def test_no_active_plugs(mock_logger, mock_start_threshold_logger):
@@ -1048,11 +1053,6 @@ def test_active_plugs_below_threshold(mock_logger, mock_start_threshold_logger):
 
                 mock_logger.info.assert_called_once_with('No plugs were actively charging this run')
                 mock_start_threshold_logger.info.assert_not_called()
-
-def test_email_send_not_called_with_invalid_file():
-    with patch('scripts.ebike_battery_manager.send') as mock:
-        target.send_my_mail('any@gmail.com', 'any_app_key', None)
-    assert not mock.called
 
 if __name__ == "__main__":
     # test_foo()

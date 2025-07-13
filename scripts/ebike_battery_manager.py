@@ -1709,10 +1709,13 @@ def exit_handler():
     coroutine within that loop. If the loop is not running, it creates a new event loop
     to run the shutdown_plugs coroutine.
     """
+    global logger
     battery_plug_list = BatteryManagerState().battery_plug_list
     active_plug_ct = len(battery_plug_list )
     # Note, this log line might not appear in the email if the finish is normal, i.e. 
     # active_plug_ct is 0 since the email send is started prior to this.
+    if logger == None:
+        logger = init_logging(log_file=BatteryManagerState().log_file, level=logging.INFO)
     logger.info(f"Executing exit_handler, active_plug_ct: {active_plug_ct}")
     if active_plug_ct > 0:
         try:

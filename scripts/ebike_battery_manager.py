@@ -120,6 +120,7 @@ class BatteryManagerState:
     _storage_charge_stop_power_threshold: float
     _log_file: str
     _debug_file_logger_active: bool
+    _profile_plug: str
 
     def __new__(cls):
         if cls._instance is None:
@@ -149,6 +150,7 @@ class BatteryManagerState:
             cls._storage_charge_stop_power_threshold = STORAGE_CHARGE_STOP_THRESHOLD_DEFAULT
             cls._log_file = DEFAULT_LOG_FILE
             cls._debug_file_logger_active = False
+            cls._profile_plug = None
         return cls._instance
 
     @property
@@ -350,6 +352,13 @@ class BatteryManagerState:
     @debug_file_logger_active.setter
     def debug_file_logger_active(self, _debug_file_logger_active: bool) -> None:
         self._debug_file_logger_active = _debug_file_logger_active
+
+    @property
+    def profile_plug(self) -> str:
+        return self._profile_plug
+    @profile_plug.setter
+    def profile_plug(self, _profile_plug) -> None:
+        self._profile_plug = _profile_plug
 
 
 class CustomLogger(logging.Logger):
@@ -812,6 +821,10 @@ def init_argparse() -> argparse.ArgumentParser:
         '-q', '--quiet_mode',
         action='store_true',
         help='reduces logging'
+    )
+    parser.add_argument(
+        '-p', '--profile_plug', metavar='',
+        help='Profile a single named plug'
     )
     parser.add_argument(
         '--nominal_start_charge_threshold', metavar='',
@@ -1818,6 +1831,9 @@ def process_overrides(args) -> None:
         BatteryManagerState().logging_mode = LoggingMode.SUPER_QUIET
     else:
         BatteryManagerState().logging_mode = LoggingMode.VERBOSE
+    BatteryManagerState().profile_plug = args.profile_plug
+    if BatteryManagerState().profile_plug:
+        logger.info(f'>>>>> OVERRIDE profile_plug: {BatteryManagerState().profile_plug}')
 
     
 def main() -> None:

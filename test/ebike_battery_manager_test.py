@@ -29,6 +29,7 @@ LECTRIC_CHARGER_AMP_HOUR_RATE = 2.0
 LECTRIC_BATTERY_AMP_HOUR_CAPACITY = 14.4
 RAD_BATTERY_1 = 'rad_battery_1'
 RAD_MANUFACTURER_NAME = 'Rad'
+EXPECTED_DEVICE_CONFIG=4
 
 target = __import__("scripts.ebike_battery_manager")
 target = target.ebike_battery_manager
@@ -127,7 +128,7 @@ def set_sample_thresholds():
     reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
-    assert len(target.BatteryManagerState().device_config) == 3
+    assert len(target.BatteryManagerState().device_config) == EXPECTED_DEVICE_CONFIG
     assert len(target.BatteryManagerState().plug_manufacturer_map) == 6
     assert len(target.BatteryManagerState().plug_storage_list) == 1
 
@@ -265,55 +266,59 @@ def test_battery_manager_container_default_state():
 
 @pytest.mark.parametrize("args, expected_logs", [
     # Test cases for different overrides
-    (Namespace(nominal_start_charge_threshold="5.0", nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold="5.0", nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None, profile_plug=None),
      ["INFO:root:>>>>> OVERRIDE nominal_charge_start_power_threshold: 5.0"]),
     
-    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff="10.0", full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff="10.0", full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None, profile_plug=None),
      ["INFO:root:>>>>> OVERRIDE nominal_charge_stop_power_threshold: 10.0"]),
     
-    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff="15.0", storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff="15.0", storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None, profile_plug=None),
      ["INFO:root:>>>>> OVERRIDE full_charge_power_threshold: 15.0"]),
     
-    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold="20.0", storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold="20.0", storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None, profile_plug=None),
      ["INFO:root:>>>>> OVERRIDE storage_charge_start_power_threshold: 20.0"]),
     
-    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff="25.0", full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff="25.0", full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None, profile_plug=None),
      ["INFO:root:>>>>> OVERRIDE storage_charge_stop_power_threshold: 25.0"]),
     
-    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=2, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=2, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None, profile_plug=None),
      ["INFO:root:>>>>> OVERRIDE full_charge_repeat_limit: 2"]),
     
-    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=5, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=5, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None, profile_plug=None),
      ["INFO:root:>>>>> OVERRIDE max_cycles_in_fine_mode: 5"]),
     
-    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=3, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=3, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None, profile_plug=None),
      ["INFO:root:>>>>> OVERRIDE storage_charge_cycle_limit: 3"]),
     
-    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=10, scan_for_battery_prefix=None, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=10, scan_for_battery_prefix=None, quiet_mode=None, profile_plug=None),
      ["INFO:root:>>>>> OVERRIDE max_hours_to_run: 10"]),
     
-    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=True, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=True, quiet_mode=None, profile_plug=None),
      ["INFO:root:>>>>> OVERRIDE scan_for_battery_prefix: True"]),
     
     # Test cases for invalid values
-    (Namespace(nominal_start_charge_threshold="invalid", nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold="invalid", nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None, profile_plug=None),
      ["ERROR:root:ERROR, Invalid nominal_charge_start_charge_threshold: could not convert string to float: 'invalid'"]),
     
-    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff="invalid", full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff="invalid", full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None, profile_plug=None),
      ["ERROR:root:ERROR, Invalid nominal_charge_stop_power_threshold: could not convert string to float: 'invalid'"]),
     
-    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff="invalid", storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff="invalid", storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None, profile_plug=None),
      ["ERROR:root:ERROR, Invalid full_charge_power_threshold: could not convert string to float: 'invalid'"]),
     
-    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold="invalid", storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold="invalid", storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None, profile_plug=None),
      ["ERROR:root:ERROR, Invalid storage_charge_start_power_threshold: could not convert string to float: 'invalid'"]),
     
-    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff="invalid", full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None),
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff="invalid", full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None, profile_plug=None),
      ["ERROR:root:ERROR, Invalid storage_charge_stop_power_threshold: could not convert string to float: 'invalid'"]),
     
     # Test case for quiet mode
-    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=True),
-     [])
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=True, profile_plug=None),
+     []),
+
+    # Test case for profile_plug
+    (Namespace(nominal_start_charge_threshold=None, nominal_charge_cutoff=None, full_charge_cutoff=None, storage_start_charge_threshold=None, storage_charge_cutoff=None, full_charge_repeat_limit=None, max_cycles_in_fine_mode=None, storage_charge_cycle_limit=None, max_hours_to_run=None, scan_for_battery_prefix=None, quiet_mode=None, profile_plug='tern_vektron'),
+     ["INFO:root:>>>>> OVERRIDE profile_plug: tern_vektron"])
 ])
 
 def test_process_overrides(args, expected_logs, caplog):
@@ -349,7 +354,7 @@ def test_verify_config_file():
     reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
-    assert len(target.BatteryManagerState().device_config) == 3
+    assert len(target.BatteryManagerState().device_config) == EXPECTED_DEVICE_CONFIG
     assert len(target.BatteryManagerState().plug_manufacturer_map) == 6
     assert len(target.BatteryManagerState().plug_storage_list) == 1
     reset_device_config()
@@ -549,7 +554,7 @@ def test_storage_mode():
     reset_device_config()
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
-    assert len(target.BatteryManagerState().device_config) == 3
+    assert len(target.BatteryManagerState().device_config) == EXPECTED_DEVICE_CONFIG
     assert len(target.BatteryManagerState().plug_manufacturer_map) == 6
     assert len(target.BatteryManagerState().plug_storage_list) == 1
     assert target.BatteryManagerState().device_config['Rad'].nominal_charge_start_power_threshold == 90.0
@@ -596,7 +601,7 @@ def test_get_power_total():
 
     result = target.verify_config_file(CONFIG_PATH + 'sample_ebike_battery_manager.config')
     assert result == True
-    assert len(target.BatteryManagerState().device_config) == 3
+    assert len(target.BatteryManagerState().device_config) == EXPECTED_DEVICE_CONFIG
     assert len(target.BatteryManagerState().plug_manufacturer_map) == 6
     assert len(target.BatteryManagerState().plug_storage_list) == 1
     for plug_name in list(target.BatteryManagerState().plug_manufacturer_map.keys()):
